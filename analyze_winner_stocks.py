@@ -429,6 +429,7 @@ class WinnerStocksAnalyzer:
             ('mdd_until_next', 'MDD Until Next', 'mdd_next'),
             ('return_not_next', 'Return Not Next', 'return_not_next'),
             ('return', 'Return Range', 'return'),
+            ('implied_cagr', 'Implied CAGRs', 'implied_cagr'),
         ]
         
         # Group columns by period
@@ -533,7 +534,8 @@ class WinnerStocksAnalyzer:
             col_25 = f'{period}_return_25pct'
             col_50 = f'{period}_return_50pct'
             col_75 = f'{period}_return_75pct'
-            return self._format_range(row, col_25, col_50, col_75, is_percentage=True)
+            years = int(period.replace('Y', ''))
+            return self._format_range(row, col_25, col_50, col_75, is_percentage=True, cagr_years=years)
 
         elif metric == 'mdd_until_next':
             col_25 = f'{period}_mdd_until_next_25pct'
@@ -547,12 +549,16 @@ class WinnerStocksAnalyzer:
             col_75 = f'{period}_return_not_next_75pct'
             return self._format_range(row, col_25, col_50, col_75, is_percentage=True)
 
+        elif metric == 'implied_cagr':
+            return self._format_implied_cagr(row, period)
+
         return 'N/A'
     
-    def _format_range(self, row, col_25, col_50, col_75, is_percentage=True):
+    def _format_range(self, row, col_25, col_50, col_75, is_percentage=True, cagr_years=None):
         """
         Format a range value in the format: small - BOLD - small
-        
+        Optionally adds a second CAGR line if cagr_years is provided.
+
         Parameters:
         -----------
         row : pd.Series
@@ -561,22 +567,24 @@ class WinnerStocksAnalyzer:
             Column names for 25th, 50th, 75th percentiles
         is_percentage : bool
             Whether to format as percentage
-            
+        cagr_years : int or None
+            If provided, adds a second line with annualized CAGR values
+
         Returns:
         --------
         str : Formatted HTML string
         """
         if col_25 not in row or col_50 not in row or col_75 not in row:
             return 'N/A'
-        
+
         val_25 = row[col_25]
         val_50 = row[col_50]
         val_75 = row[col_75]
-        
+
         # Check if all values are available
         if pd.isna(val_25) or pd.isna(val_50) or pd.isna(val_75):
             return 'N/A'
-        
+
         # Format values
         if is_percentage:
             str_25 = f'{val_25*100:.1f}%'
@@ -586,15 +594,83 @@ class WinnerStocksAnalyzer:
             str_25 = f'{val_25:.1f}'
             str_50 = f'{val_50:.1f}'
             str_75 = f'{val_75:.1f}'
-        
+
         # Build HTML with styling
         html = f'<span class="range-value">'
         html += f'<span class="small">{str_25}</span>'
         html += f'<span class="mid"> {str_50} </span>'
         html += f'<span class="small">{str_75}</span>'
         html += '</span>'
-        
+
+        # Add CAGR second line if requested
+        if cagr_years is not None and cagr_years > 0:
+            cagr_25 = self._compute_cagr(val_25, cagr_years)
+            cagr_50 = self._compute_cagr(val_50, cagr_years)
+            cagr_75 = self._compute_cagr(val_75, cagr_years)
+            html += '<br>'
+            html += f'<span class="range-value cagr-line">'
+            html += f'<span class="small">{cagr_25}</span>'
+            html += f'<span class="mid"> {cagr_50} </span>'
+            html += f'<span class="small">{cagr_75}</span>'
+            html += '</span>'
+
         return html
+
+    def _compute_cagr(self, total_return, years):
+        """
+        Compute annualized CAGR from a total return over a number of years.
+
+        Parameters:
+        -----------
+        total_return : float
+            Total return as decimal (e.g., 0.5 for 50%)
+        years : int
+            Number of years
+
+        Returns:
+        --------
+        str : Formatted CAGR string
+        """
+        growth = 1 + total_return
+        if growth <= 0:
+            return 'N/A'
+        cagr = growth ** (1 / years) - 1
+        return f'{cagr*100:.1f}%'
+
+    def _format_implied_cagr(self, row, period):
+        """
+        Format implied CAGR for reaching each higher multiple within the given period.
+        Shows what annualized return is needed from current multiple to each higher multiple.
+
+        Parameters:
+        -----------
+        row : pd.Series
+            Row from summary dataframe
+        period : str
+            Period (1Y, 2Y, etc.)
+
+        Returns:
+        --------
+        str : Formatted HTML string
+        """
+        mult_str = row.get('multiple', '')
+        if isinstance(mult_str, str) and mult_str.endswith('x'):
+            current_mult = int(mult_str[:-1])
+        else:
+            return 'N/A'
+
+        years = int(period.replace('Y', ''))
+
+        parts = []
+        for target in range(current_mult + 1, 11):
+            # Growth factor from current multiple to target multiple
+            growth = target / current_mult
+            cagr = growth ** (1 / years) - 1
+            parts.append(f'<span class="prob-item">{target}x: {cagr*100:.1f}%</span>')
+
+        if parts:
+            return '<span class="prob-higher-list">' + ' '.join(parts) + '</span>'
+        return 'N/A'
     
     def export_ticker_to_excel(self, ticker, output_dir='analysis_results'):
         """

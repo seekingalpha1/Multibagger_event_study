@@ -201,6 +201,21 @@
             font-weight: 600;
         }
 
+        .cagr-line {
+            display: block;
+            margin-top: 2px;
+            font-style: italic;
+            opacity: 0.75;
+        }
+
+        .cagr-line .small {
+            font-size: 9px !important;
+        }
+
+        .cagr-line .mid {
+            font-size: 11px !important;
+        }
+
         .prob-higher-list {
             display: flex;
             flex-wrap: wrap;
@@ -287,6 +302,7 @@
                 <button onclick="toggleMetric('mdd_next')" class="metric-btn active" id="metric-mdd_next">MDD Until Next</button>
                 <button onclick="toggleMetric('return_not_next')" class="metric-btn active" id="metric-return_not_next">Return Not Next</button>
                 <button onclick="toggleMetric('return')" class="metric-btn active" id="metric-return">Return Range</button>
+                <button onclick="toggleMetric('implied_cagr')" class="metric-btn active" id="metric-implied_cagr">Implied CAGRs</button>
             </div>
         </div>
         
@@ -323,7 +339,7 @@
     <script>
         // Active periods and metrics
         let activePeriods = new Set(['1Y', '2Y', '3Y', '5Y', '10Y']);
-        let activeMetrics = new Set(['prob_higher', 'days', 'mdd_next', 'return_not_next', 'return']);
+        let activeMetrics = new Set(['prob_higher', 'days', 'mdd_next', 'return_not_next', 'return', 'implied_cagr']);
         
         function togglePeriod(period) {
             const btn = document.getElementById('period-' + period);
@@ -393,7 +409,7 @@
         }
         
         function selectAllMetrics() {
-            activeMetrics = new Set(['prob_higher', 'days', 'mdd_next', 'return_not_next', 'return']);
+            activeMetrics = new Set(['prob_higher', 'days', 'mdd_next', 'return_not_next', 'return', 'implied_cagr']);
             document.querySelectorAll('.metric-btn').forEach(btn => btn.classList.add('active'));
             updateTable();
         }
