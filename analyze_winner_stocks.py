@@ -75,7 +75,7 @@ class WinnerStocksAnalyzer:
             ).quantile(self.percentile / 100)
             return group
         
-        self.data = self.data.groupby('Ticker').apply(calc_rolling_percentile).reset_index()
+        self.data = self.data.groupby('Ticker', group_keys=False).apply(calc_rolling_percentile).reset_index(drop=True)
         
         # Drop rows where we don't have enough history for rolling calculation
         before_drop = len(self.data)
@@ -182,17 +182,9 @@ class WinnerStocksAnalyzer:
             # Calculate metrics for each follow-up period
             for period_name, period_days in self.followup_periods.items():
                 # Get data for this period
-                period_data = future_data[future_data.index < period_days] if len(future_data) > 0 else pd.DataFrame()
-                
+                period_data = future_data[future_data.index < period_days]
+
                 if len(period_data) == 0:
-                    # Not enough future data
-                    result[f'{period_name}_return'] = np.nan
-                    result[f'{period_name}_final_price'] = np.nan
-                    result[f'{period_name}_max_price'] = np.nan
-                    result[f'{period_name}_min_price'] = np.nan
-                    result[f'{period_name}_mdd'] = np.nan
-                    result[f'{period_name}_volatility'] = np.nan
-                    result[f'{period_name}_days_available'] = 0
                     continue
                 
                 # Calculate returns
@@ -255,11 +247,11 @@ class WinnerStocksAnalyzer:
             
             # Check each follow-up period
             for period_name, period_days in self.followup_periods.items():
-                period_data = future_data[future_data.index < period_days] if len(future_data) > 0 else pd.DataFrame()
-                
+                period_data = future_data[future_data.index < period_days]
+
                 if len(period_data) == 0:
                     continue
-                
+
                 # Check if next multiple was reached
                 for next_mult in range(current_multiple + 1, 11):
                     target_price = entry_price * next_mult
@@ -350,19 +342,6 @@ class WinnerStocksAnalyzer:
                     
                     # Sample size
                     row[f'{period_name}_n_samples'] = len(returns)
-                else:
-                    # Not enough data
-                    row[f'{period_name}_return_25pct'] = np.nan
-                    row[f'{period_name}_return_50pct'] = np.nan
-                    row[f'{period_name}_return_75pct'] = np.nan
-                    row[f'{period_name}_return_mean'] = np.nan
-                    row[f'{period_name}_mdd_mean'] = np.nan
-                    row[f'{period_name}_mdd_median'] = np.nan
-                    row[f'{period_name}_mdd_worst'] = np.nan
-                    row[f'{period_name}_win_rate'] = np.nan
-                    row[f'{period_name}_sharpe'] = np.nan
-                    row[f'{period_name}_n_samples'] = 0
-                
                 # Probability of reaching higher multiples
                 if hasattr(self, 'next_multiple_results'):
                     # --- KPIs for NEXT multiple (current + 1) ---
@@ -377,7 +356,7 @@ class WinnerStocksAnalyzer:
                         row[f'{period_name}_prob_next_multiple'] = prob
 
                         # Average days to reach NEXT (for those that reached)
-                        reached_data = next_mult_data[next_mult_data['reached'] == True]
+                        reached_data = next_mult_data[next_mult_data['reached']]
                         if len(reached_data) > 0:
                             avg_days = reached_data['days_to_reach'].mean()
                             row[f'{period_name}_avg_days_to_next'] = avg_days
@@ -390,7 +369,7 @@ class WinnerStocksAnalyzer:
                                 row[f'{period_name}_mdd_until_next_75pct'] = mdd_until_next.quantile(0.75)
 
                         # Returns if NEXT multiple is NOT reached (percentiles)
-                        not_reached_data = next_mult_data[next_mult_data['reached'] == False]
+                        not_reached_data = next_mult_data[~next_mult_data['reached']]
                         if len(not_reached_data) > 0:
                             returns_not_reached = not_reached_data['final_return_if_not_reached'].dropna()
                             if len(returns_not_reached) > 0:
@@ -445,14 +424,11 @@ class WinnerStocksAnalyzer:
         
         # Define column order and their metric types
         metric_config = [
-            ('prob_next_multiple', 'Prob Next', 'prob'),
             ('prob_higher', 'Prob Higher Multiples', 'prob_higher'),
             ('avg_days_to_next', 'Avg Days Next', 'days'),
             ('mdd_until_next', 'MDD Until Next', 'mdd_next'),
             ('return_not_next', 'Return Not Next', 'return_not_next'),
-            ('win_rate', 'Win Rate', 'win'),
             ('return', 'Return Range', 'return'),
-            ('n_samples', 'N', 'samples')
         ]
         
         # Group columns by period
@@ -526,13 +502,7 @@ class WinnerStocksAnalyzer:
         --------
         str : Formatted HTML value
         """
-        if metric == 'prob_next_multiple':
-            col = f'{period}_prob_next_multiple'
-            if col in row and pd.notna(row[col]):
-                return f'{row[col]*100:.1f}%'
-            return 'N/A'
-
-        elif metric == 'prob_higher':
+        if metric == 'prob_higher':
             # Combined display of probabilities for ALL higher multiples
             # Extract the current multiple number from the row
             mult_str = row.get('multiple', '')
@@ -554,18 +524,6 @@ class WinnerStocksAnalyzer:
 
         elif metric == 'avg_days_to_next':
             col = f'{period}_avg_days_to_next'
-            if col in row and pd.notna(row[col]):
-                return f'{row[col]:.0f}'
-            return 'N/A'
-
-        elif metric == 'win_rate':
-            col = f'{period}_win_rate'
-            if col in row and pd.notna(row[col]):
-                return f'{row[col]*100:.1f}%'
-            return 'N/A'
-
-        elif metric == 'n_samples':
-            col = f'{period}_n_samples'
             if col in row and pd.notna(row[col]):
                 return f'{row[col]:.0f}'
             return 'N/A'
@@ -897,7 +855,7 @@ def main():
     
     # Only analyze stocks that were in S&P 500
     print(f"\nFiltering for S&P 500 members only...")
-    df_sp500 = df[df['in_sp500'] == True].copy()
+    df_sp500 = df[df['in_sp500']].copy()
     print(f"Rows after filtering: {len(df_sp500):,} (from {len(df):,})")
     
     # Run analysis

@@ -282,14 +282,11 @@
         <div class="filter-group">
             <h3>📊 Metrics</h3>
             <div class="filter-buttons">
-                <button onclick="toggleMetric('prob')" class="metric-btn active" id="metric-prob">Prob Next</button>
                 <button onclick="toggleMetric('prob_higher')" class="metric-btn active" id="metric-prob_higher">Prob Higher Multiples</button>
                 <button onclick="toggleMetric('days')" class="metric-btn active" id="metric-days">Avg Days Next</button>
                 <button onclick="toggleMetric('mdd_next')" class="metric-btn active" id="metric-mdd_next">MDD Until Next</button>
                 <button onclick="toggleMetric('return_not_next')" class="metric-btn active" id="metric-return_not_next">Return Not Next</button>
-                <button onclick="toggleMetric('win')" class="metric-btn active" id="metric-win">Win Rate</button>
                 <button onclick="toggleMetric('return')" class="metric-btn active" id="metric-return">Return Range</button>
-                <button onclick="toggleMetric('samples')" class="metric-btn active" id="metric-samples">N Samples</button>
             </div>
         </div>
         
@@ -326,7 +323,7 @@
     <script>
         // Active periods and metrics
         let activePeriods = new Set(['1Y', '2Y', '3Y', '5Y', '10Y']);
-        let activeMetrics = new Set(['prob', 'prob_higher', 'days', 'mdd_next', 'return_not_next', 'win', 'return', 'samples']);
+        let activeMetrics = new Set(['prob_higher', 'days', 'mdd_next', 'return_not_next', 'return']);
         
         function togglePeriod(period) {
             const btn = document.getElementById('period-' + period);
@@ -396,7 +393,7 @@
         }
         
         function selectAllMetrics() {
-            activeMetrics = new Set(['prob', 'prob_higher', 'days', 'mdd_next', 'return_not_next', 'win', 'return', 'samples']);
+            activeMetrics = new Set(['prob_higher', 'days', 'mdd_next', 'return_not_next', 'return']);
             document.querySelectorAll('.metric-btn').forEach(btn => btn.classList.add('active'));
             updateTable();
         }
