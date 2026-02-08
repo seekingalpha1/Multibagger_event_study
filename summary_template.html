@@ -200,6 +200,21 @@
         .info-meta strong {
             font-weight: 600;
         }
+
+        .prob-higher-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .prob-item {
+            background-color: #eaf2f8;
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -268,9 +283,10 @@
             <h3>📊 Metrics</h3>
             <div class="filter-buttons">
                 <button onclick="toggleMetric('prob')" class="metric-btn active" id="metric-prob">Prob Next</button>
-                <button onclick="toggleMetric('days')" class="metric-btn active" id="metric-days">Avg Days</button>
-                <button onclick="toggleMetric('mdd_reach')" class="metric-btn active" id="metric-mdd_reach">MDD Until Reach</button>
-                <button onclick="toggleMetric('return_not')" class="metric-btn active" id="metric-return_not">Return Not Reached</button>
+                <button onclick="toggleMetric('prob_higher')" class="metric-btn active" id="metric-prob_higher">Prob Higher Multiples</button>
+                <button onclick="toggleMetric('days')" class="metric-btn active" id="metric-days">Avg Days Next</button>
+                <button onclick="toggleMetric('mdd_next')" class="metric-btn active" id="metric-mdd_next">MDD Until Next</button>
+                <button onclick="toggleMetric('return_not_next')" class="metric-btn active" id="metric-return_not_next">Return Not Next</button>
                 <button onclick="toggleMetric('win')" class="metric-btn active" id="metric-win">Win Rate</button>
                 <button onclick="toggleMetric('return')" class="metric-btn active" id="metric-return">Return Range</button>
                 <button onclick="toggleMetric('samples')" class="metric-btn active" id="metric-samples">N Samples</button>
@@ -310,7 +326,7 @@
     <script>
         // Active periods and metrics
         let activePeriods = new Set(['1Y', '2Y', '3Y', '5Y', '10Y']);
-        let activeMetrics = new Set(['prob', 'days', 'mdd_reach', 'return_not', 'win', 'return', 'samples']);
+        let activeMetrics = new Set(['prob', 'prob_higher', 'days', 'mdd_next', 'return_not_next', 'win', 'return', 'samples']);
         
         function togglePeriod(period) {
             const btn = document.getElementById('period-' + period);
@@ -380,7 +396,7 @@
         }
         
         function selectAllMetrics() {
-            activeMetrics = new Set(['prob', 'days', 'mdd_reach', 'return_not', 'win', 'return', 'samples']);
+            activeMetrics = new Set(['prob', 'prob_higher', 'days', 'mdd_next', 'return_not_next', 'win', 'return', 'samples']);
             document.querySelectorAll('.metric-btn').forEach(btn => btn.classList.add('active'));
             updateTable();
         }
