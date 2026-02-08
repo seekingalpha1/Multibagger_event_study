@@ -363,39 +363,51 @@ class WinnerStocksAnalyzer:
                     row[f'{period_name}_sharpe'] = np.nan
                     row[f'{period_name}_n_samples'] = 0
                 
-                # Probability of reaching next multiple
+                # Probability of reaching higher multiples
                 if hasattr(self, 'next_multiple_results'):
+                    # --- KPIs for NEXT multiple (current + 1) ---
                     next_mult_data = self.next_multiple_results[
                         (self.next_multiple_results['current_multiple'] == multiple) &
                         (self.next_multiple_results['next_multiple'] == multiple + 1) &
                         (self.next_multiple_results['period'] == period_name)
                     ]
-                    
+
                     if len(next_mult_data) > 0:
                         prob = next_mult_data['reached'].mean()
                         row[f'{period_name}_prob_next_multiple'] = prob
-                        
-                        # Average days to reach (for those that reached)
+
+                        # Average days to reach NEXT (for those that reached)
                         reached_data = next_mult_data[next_mult_data['reached'] == True]
                         if len(reached_data) > 0:
                             avg_days = reached_data['days_to_reach'].mean()
                             row[f'{period_name}_avg_days_to_next'] = avg_days
-                            
-                            # NEW: MDD until next multiple is reached (percentiles)
-                            mdd_until_reach = reached_data['mdd_until_reach'].dropna()
-                            if len(mdd_until_reach) > 0:
-                                row[f'{period_name}_mdd_until_reach_25pct'] = mdd_until_reach.quantile(0.25)
-                                row[f'{period_name}_mdd_until_reach_50pct'] = mdd_until_reach.quantile(0.50)
-                                row[f'{period_name}_mdd_until_reach_75pct'] = mdd_until_reach.quantile(0.75)
-                        
-                        # NEW: Returns if next multiple is NOT reached (percentiles)
+
+                            # MDD until NEXT multiple is reached (percentiles)
+                            mdd_until_next = reached_data['mdd_until_reach'].dropna()
+                            if len(mdd_until_next) > 0:
+                                row[f'{period_name}_mdd_until_next_25pct'] = mdd_until_next.quantile(0.25)
+                                row[f'{period_name}_mdd_until_next_50pct'] = mdd_until_next.quantile(0.50)
+                                row[f'{period_name}_mdd_until_next_75pct'] = mdd_until_next.quantile(0.75)
+
+                        # Returns if NEXT multiple is NOT reached (percentiles)
                         not_reached_data = next_mult_data[next_mult_data['reached'] == False]
                         if len(not_reached_data) > 0:
                             returns_not_reached = not_reached_data['final_return_if_not_reached'].dropna()
                             if len(returns_not_reached) > 0:
-                                row[f'{period_name}_return_not_reached_25pct'] = returns_not_reached.quantile(0.25)
-                                row[f'{period_name}_return_not_reached_50pct'] = returns_not_reached.quantile(0.50)
-                                row[f'{period_name}_return_not_reached_75pct'] = returns_not_reached.quantile(0.75)
+                                row[f'{period_name}_return_not_next_25pct'] = returns_not_reached.quantile(0.25)
+                                row[f'{period_name}_return_not_next_50pct'] = returns_not_reached.quantile(0.50)
+                                row[f'{period_name}_return_not_next_75pct'] = returns_not_reached.quantile(0.75)
+
+                    # --- Probabilities for ALL higher multiples ---
+                    for target_mult in range(multiple + 1, 11):
+                        target_data = self.next_multiple_results[
+                            (self.next_multiple_results['current_multiple'] == multiple) &
+                            (self.next_multiple_results['next_multiple'] == target_mult) &
+                            (self.next_multiple_results['period'] == period_name)
+                        ]
+
+                        if len(target_data) > 0:
+                            row[f'{period_name}_prob_reach_{target_mult}x'] = target_data['reached'].mean()
             
             summary_rows.append(row)
         
@@ -434,9 +446,10 @@ class WinnerStocksAnalyzer:
         # Define column order and their metric types
         metric_config = [
             ('prob_next_multiple', 'Prob Next', 'prob'),
-            ('avg_days_to_next', 'Avg Days', 'days'),
-            ('mdd_until_reach', 'MDD Until Reach', 'mdd_reach'),
-            ('return_not_reached', 'Return Not Reached', 'return_not'),
+            ('prob_higher', 'Prob Higher Multiples', 'prob_higher'),
+            ('avg_days_to_next', 'Avg Days Next', 'days'),
+            ('mdd_until_next', 'MDD Until Next', 'mdd_next'),
+            ('return_not_next', 'Return Not Next', 'return_not_next'),
             ('win_rate', 'Win Rate', 'win'),
             ('return', 'Return Range', 'return'),
             ('n_samples', 'N', 'samples')
@@ -518,44 +531,64 @@ class WinnerStocksAnalyzer:
             if col in row and pd.notna(row[col]):
                 return f'{row[col]*100:.1f}%'
             return 'N/A'
-        
+
+        elif metric == 'prob_higher':
+            # Combined display of probabilities for ALL higher multiples
+            # Extract the current multiple number from the row
+            mult_str = row.get('multiple', '')
+            if isinstance(mult_str, str) and mult_str.endswith('x'):
+                current_mult = int(mult_str[:-1])
+            else:
+                return 'N/A'
+
+            parts = []
+            for target in range(current_mult + 1, 11):
+                col = f'{period}_prob_reach_{target}x'
+                if col in row and pd.notna(row[col]):
+                    prob_pct = row[col] * 100
+                    parts.append(f'<span class="prob-item">{target}x: {prob_pct:.0f}%</span>')
+
+            if parts:
+                return '<span class="prob-higher-list">' + ' '.join(parts) + '</span>'
+            return 'N/A'
+
         elif metric == 'avg_days_to_next':
             col = f'{period}_avg_days_to_next'
             if col in row and pd.notna(row[col]):
                 return f'{row[col]:.0f}'
             return 'N/A'
-        
+
         elif metric == 'win_rate':
             col = f'{period}_win_rate'
             if col in row and pd.notna(row[col]):
                 return f'{row[col]*100:.1f}%'
             return 'N/A'
-        
+
         elif metric == 'n_samples':
             col = f'{period}_n_samples'
             if col in row and pd.notna(row[col]):
                 return f'{row[col]:.0f}'
             return 'N/A'
-        
+
         # Range metrics (25%, 50%, 75% combined)
         elif metric == 'return':
             col_25 = f'{period}_return_25pct'
             col_50 = f'{period}_return_50pct'
             col_75 = f'{period}_return_75pct'
             return self._format_range(row, col_25, col_50, col_75, is_percentage=True)
-        
-        elif metric == 'mdd_until_reach':
-            col_25 = f'{period}_mdd_until_reach_25pct'
-            col_50 = f'{period}_mdd_until_reach_50pct'
-            col_75 = f'{period}_mdd_until_reach_75pct'
+
+        elif metric == 'mdd_until_next':
+            col_25 = f'{period}_mdd_until_next_25pct'
+            col_50 = f'{period}_mdd_until_next_50pct'
+            col_75 = f'{period}_mdd_until_next_75pct'
             return self._format_range(row, col_25, col_50, col_75, is_percentage=True)
-        
-        elif metric == 'return_not_reached':
-            col_25 = f'{period}_return_not_reached_25pct'
-            col_50 = f'{period}_return_not_reached_50pct'
-            col_75 = f'{period}_return_not_reached_75pct'
+
+        elif metric == 'return_not_next':
+            col_25 = f'{period}_return_not_next_25pct'
+            col_50 = f'{period}_return_not_next_50pct'
+            col_75 = f'{period}_return_not_next_75pct'
             return self._format_range(row, col_25, col_50, col_75, is_percentage=True)
-        
+
         return 'N/A'
     
     def _format_range(self, row, col_25, col_50, col_75, is_percentage=True):
