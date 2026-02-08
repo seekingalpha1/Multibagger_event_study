@@ -16,10 +16,7 @@ import time
 import os
 from tqdm import tqdm
 import warnings
-import logging
-
 warnings.filterwarnings('ignore')
-logging.getLogger('yfinance').disabled = True
 
 
 class SP500DataManager:
@@ -30,7 +27,8 @@ class SP500DataManager:
     def __init__(self, 
                  components_url="https://raw.githubusercontent.com/fja05680/sp500/master/S%26P%20500%20Historical%20Components%20%26%20Changes%2801-17-2026%29.csv",
                  data_file='sp500_historical_prices.pkl',
-                 metadata_file='sp500_metadata.pkl'):
+                 metadata_file='sp500_metadata.pkl',
+                 enable_cleaning=True):
         """
         Initialize the data manager.
         
@@ -42,10 +40,13 @@ class SP500DataManager:
             Path to the main data pickle file
         metadata_file : str
             Path to the metadata pickle file
+        enable_cleaning : bool
+            Enable automatic data cleaning (default: True)
         """
         self.components_url = components_url
         self.data_file = data_file
         self.metadata_file = metadata_file
+        self.enable_cleaning = enable_cleaning
         
     def load_historical_components(self):
         """
@@ -55,6 +56,164 @@ class SP500DataManager:
         df = pd.read_csv(self.components_url)
         print(f"Loaded data with shape: {df.shape}")
         return df
+    
+    def clean_price_data(self, df, ticker=None):
+        """
+        Clean price data from common Yahoo Finance errors.
+        
+        Parameters:
+        -----------
+        df : pd.DataFrame
+            Price data to clean
+        ticker : str, optional
+            Ticker symbol (for logging purposes)
+            
+        Returns:
+        --------
+        cleaned_df : pd.DataFrame
+            Cleaned data
+        issues_found : dict
+            Dictionary with cleaning statistics
+        """
+        if not self.enable_cleaning:
+            return df, {}
+        
+        original_len = len(df)
+        issues = {
+            'zero_negative_prices': 0,
+            'zero_volume': 0,
+            'extreme_outliers': 0,
+            'missing_data': 0,
+            'duplicate_dates': 0
+        }
+        
+        # Make a copy to avoid modifying original
+        df = df.copy()
+        
+        # 1. Remove duplicate dates (keep first occurrence)
+        duplicates = df.duplicated(subset=['Date'], keep='first')
+        if duplicates.any():
+            issues['duplicate_dates'] = duplicates.sum()
+            df = df[~duplicates]
+        
+        # 2. Remove rows with zero or negative prices
+        invalid_prices = (df['Close'] <= 0) | (df['Open'] <= 0) | (df['High'] <= 0) | (df['Low'] <= 0)
+        if invalid_prices.any():
+            issues['zero_negative_prices'] = invalid_prices.sum()
+            df = df[~invalid_prices]
+        
+        # 3. Remove rows with zero volume (often indicates bad data)
+        # Exception: Some stocks legitimately have low volume days, so we're lenient
+        zero_volume = (df['Volume'] == 0)
+        if zero_volume.any():
+            issues['zero_volume'] = zero_volume.sum()
+            # Only remove if it's a pattern (>5 consecutive days) or isolated single days
+            df = df[~zero_volume]
+        
+        # 4. Detect and remove extreme outliers (likely data errors)
+        if len(df) > 1:
+            # Calculate daily returns
+            df = df.sort_values('Date')
+            daily_returns = df['Close'].pct_change().abs()
+            
+            # Flag returns > 500% (5x in one day) as suspicious
+            # This catches stock split errors and data glitches
+            extreme_moves = daily_returns > 5.0
+            
+            if extreme_moves.any():
+                issues['extreme_outliers'] = extreme_moves.sum()
+                
+                # Don't remove the first occurrence (might be legit)
+                # But log it for review
+                extreme_indices = df[extreme_moves].index
+                
+                # Only remove if multiple extreme moves in short period (likely error)
+                for idx in extreme_indices:
+                    # Check if there are multiple extreme moves within 5 days
+                    nearby_indices = df.index[(df.index >= idx - 5) & (df.index <= idx + 5)]
+                    nearby_extremes = extreme_moves.loc[nearby_indices].sum()
+                    
+                    if nearby_extremes > 1:
+                        # Multiple extreme moves = likely data error
+                        df = df.drop(idx, errors='ignore')
+        
+        # 5. Check for missing OHLC consistency
+        # High should be >= Low, Close should be between High and Low
+        inconsistent = (df['High'] < df['Low']) | (df['Close'] > df['High']) | (df['Close'] < df['Low'])
+        if inconsistent.any():
+            issues['missing_data'] = inconsistent.sum()
+            df = df[~inconsistent]
+        
+        # 6. Sort by date
+        df = df.sort_values('Date').reset_index(drop=True)
+        
+        cleaned_len = len(df)
+        issues['rows_removed'] = original_len - cleaned_len
+        issues['rows_remaining'] = cleaned_len
+        
+        return df, issues
+    
+    def generate_cleaning_report(self, all_issues):
+        """
+        Generate a summary report of data cleaning.
+        
+        Parameters:
+        -----------
+        all_issues : dict
+            Dictionary mapping tickers to their cleaning issues
+        """
+        print("\n" + "="*60)
+        print("DATA CLEANING REPORT")
+        print("="*60)
+        
+        total_issues = {
+            'zero_negative_prices': 0,
+            'zero_volume': 0,
+            'extreme_outliers': 0,
+            'missing_data': 0,
+            'duplicate_dates': 0,
+            'rows_removed': 0
+        }
+        
+        problematic_tickers = []
+        
+        for ticker, issues in all_issues.items():
+            # Aggregate totals
+            for key in total_issues.keys():
+                if key in issues:
+                    total_issues[key] += issues[key]
+            
+            # Flag tickers with significant issues
+            if issues.get('rows_removed', 0) > 100:
+                problematic_tickers.append({
+                    'ticker': ticker,
+                    'rows_removed': issues.get('rows_removed', 0),
+                    'issues': issues
+                })
+        
+        print(f"\nTotal rows removed: {total_issues['rows_removed']:,}")
+        print(f"\nIssues found:")
+        print(f"  Zero/negative prices: {total_issues['zero_negative_prices']:,}")
+        print(f"  Zero volume days: {total_issues['zero_volume']:,}")
+        print(f"  Extreme outliers (>500% daily change): {total_issues['extreme_outliers']:,}")
+        print(f"  OHLC inconsistencies: {total_issues['missing_data']:,}")
+        print(f"  Duplicate dates: {total_issues['duplicate_dates']:,}")
+        
+        if problematic_tickers:
+            print(f"\n⚠ {len(problematic_tickers)} tickers had significant data issues (>100 rows removed):")
+            
+            # Sort by rows removed
+            problematic_tickers.sort(key=lambda x: x['rows_removed'], reverse=True)
+            
+            for item in problematic_tickers[:10]:  # Show top 10
+                print(f"  {item['ticker']}: {item['rows_removed']} rows removed")
+            
+            # Save detailed report
+            report_df = pd.DataFrame(problematic_tickers)
+            report_df.to_csv('data_cleaning_report.csv', index=False)
+            print(f"\nDetailed cleaning report saved to: data_cleaning_report.csv")
+        
+        print("="*60)
     
     def get_all_unique_tickers(self, components_df):
         """
@@ -152,10 +311,10 @@ class SP500DataManager:
         
         return price_df
     
-    def download_stock_data(self, ticker, start_date='1960-01-01', end_date=None):
+    def download_stock_data(self, ticker, start_date='1970-01-01', end_date=None):
         """
         Download historical stock data for a single ticker.
-        Goes back as far as possible (default: 1960).
+        Goes back as far as possible (default: 1970).
         """
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
@@ -186,15 +345,30 @@ class SP500DataManager:
         """
         all_data = []
         failed_tickers = []
+        cleaning_issues = {}
         
         print(f"\nDownloading data for {len(tickers)} tickers...")
         print(f"Date range: {start_date} to {end_date or 'today'}")
+        if self.enable_cleaning:
+            print("Data cleaning: ENABLED")
+        else:
+            print("Data cleaning: DISABLED")
         
         for ticker in tqdm(tickers, desc="Downloading"):
             df = self.download_stock_data(ticker, start_date, end_date)
             
             if df is not None and not df.empty:
-                all_data.append(df)
+                # Clean the data if enabled
+                if self.enable_cleaning:
+                    df, issues = self.clean_price_data(df, ticker)
+                    if issues.get('rows_removed', 0) > 0:
+                        cleaning_issues[ticker] = issues
+                
+                # Only add if we still have data after cleaning
+                if len(df) > 0:
+                    all_data.append(df)
+                else:
+                    failed_tickers.append(ticker)
             else:
                 failed_tickers.append(ticker)
             
@@ -204,6 +378,10 @@ class SP500DataManager:
             combined_df = pd.concat(all_data, ignore_index=True)
             print(f"\nSuccessfully downloaded data for {len(all_data)} tickers")
             print(f"Failed to download: {len(failed_tickers)} tickers")
+            
+            # Generate cleaning report if cleaning was enabled
+            if self.enable_cleaning and cleaning_issues:
+                self.generate_cleaning_report(cleaning_issues)
             
             return combined_df, failed_tickers
         else:
@@ -416,7 +594,7 @@ class SP500DataManager:
         
         return combined_df
     
-    def initial_download(self, start_date='1970-01-01', delay=0.1):
+    def initial_download(self, start_date='1970-01-01', delay=0.1, limit=None):
         """
         Perform initial download of all data.
         
@@ -426,15 +604,24 @@ class SP500DataManager:
             Start date for historical data. Default is 1970-01-01 to go back as far as possible.
         delay : float
             Delay between API calls in seconds
+        limit : int, optional
+            Limit number of tickers to download (for testing). If None, download all.
         """
         print("\n" + "="*60)
         print("INITIAL DOWNLOAD OF S&P 500 DATA")
         print(f"Going back to: {start_date}")
+        if limit:
+            print(f"LIMIT: Only downloading first {limit} tickers (testing mode)")
         print("="*60)
         
         # Load components
         components_df = self.load_historical_components()
         all_tickers = self.get_all_unique_tickers(components_df)
+        
+        # Apply limit if specified
+        if limit and limit > 0:
+            all_tickers = all_tickers[:limit]
+            print(f"Limited to {len(all_tickers)} tickers for testing")
         
         # Save ticker list
         with open('all_tickers.txt', 'w') as f:
@@ -476,11 +663,10 @@ def main():
     """
     import sys
     
-    # Create manager
-    manager = SP500DataManager()
-    
     # Default start date (go back as far as possible)
     start_date = '1970-01-01'
+    enable_cleaning = True  # Default: cleaning enabled
+    limit = None  # Default: no limit
     
     # Check command line arguments
     if len(sys.argv) > 1:
@@ -492,6 +678,25 @@ def main():
             if idx + 1 < len(sys.argv):
                 start_date = sys.argv[idx + 1]
                 print(f"Using custom start date: {start_date}")
+        
+        # Check for disable cleaning flag
+        if '--no-cleaning' in sys.argv:
+            enable_cleaning = False
+            print("Data cleaning: DISABLED")
+        
+        # Check for limit argument
+        if '--limit' in sys.argv:
+            idx = sys.argv.index('--limit')
+            if idx + 1 < len(sys.argv):
+                try:
+                    limit = int(sys.argv[idx + 1])
+                    print(f"Limit: {limit} tickers (TESTING MODE)")
+                except ValueError:
+                    print(f"ERROR: --limit must be an integer")
+                    return
+        
+        # Create manager with cleaning option
+        manager = SP500DataManager(enable_cleaning=enable_cleaning)
         
         if command == 'load':
             # Just load and display info
@@ -509,27 +714,34 @@ def main():
             df = manager.update_data(full_refresh=True)
         
         elif command == 'download':
-            # Initial download with optional custom start date
-            df = manager.initial_download(start_date=start_date)
+            # Initial download with optional custom start date and limit
+            df = manager.initial_download(start_date=start_date, limit=limit)
         
         else:
             print(f"Unknown command: {command}")
             print("Available commands: download, load, update, refresh")
             print("\nOptional arguments:")
             print("  --start-date YYYY-MM-DD    Set custom start date (only for 'download' command)")
+            print("  --no-cleaning              Disable automatic data cleaning")
+            print("  --limit N                  Download only first N tickers (for testing)")
             print("\nExamples:")
             print("  python download_sp500_data.py download")
             print("  python download_sp500_data.py download --start-date 1980-01-01")
+            print("  python download_sp500_data.py download --no-cleaning")
+            print("  python download_sp500_data.py download --limit 10")
+            print("  python download_sp500_data.py download --limit 50 --start-date 2000-01-01")
     
     else:
         # Default behavior: check if data exists, if not download, if yes update
+        manager = SP500DataManager(enable_cleaning=enable_cleaning)
+        
         if os.path.exists(manager.data_file):
             print("Existing data found. Use 'update' to add new data or 'refresh' to re-download all.")
             df, metadata = manager.load_data()
         else:
             print("No existing data found. Starting initial download...")
             print(f"Going back to: {start_date}")
-            df = manager.initial_download(start_date=start_date)
+            df = manager.initial_download(start_date=start_date, limit=limit)
 
 
 if __name__ == "__main__":
