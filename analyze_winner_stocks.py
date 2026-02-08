@@ -758,15 +758,15 @@ class WinnerStocksAnalyzer:
                 for col_idx in range(1, len(headers) + 1):
                     ws3.column_dimensions[chr(64 + col_idx)].width = 14
         
-        # Sheet 4: Next Multiple Probabilities
-        ws4 = wb.create_sheet("Next Multiple Analysis")
+        # Sheet 4: Higher Multiple Probabilities (all target multiples, not just next)
+        ws4 = wb.create_sheet("Higher Multiple Analysis")
         if hasattr(self, 'next_multiple_results'):
             ticker_next = self.next_multiple_results[
                 self.next_multiple_results['ticker'] == ticker
             ].copy()
-            
+
             if len(ticker_next) > 0:
-                headers = ['Event_Date', 'Current_Multiple', 'Next_Multiple', 'Period', 
+                headers = ['Event_Date', 'Current_Multiple', 'Target_Multiple', 'Period',
                           'Reached', 'Days_to_Reach', 'MDD_Until_Reach', 'Return_If_Not_Reached']
                 ws4.append(headers)
                 
