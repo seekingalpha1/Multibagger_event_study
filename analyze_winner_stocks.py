@@ -75,7 +75,7 @@ class WinnerStocksAnalyzer:
             ).quantile(self.percentile / 100)
             return group
         
-        self.data = self.data.groupby('Ticker', group_keys=False).apply(calc_rolling_percentile).reset_index(drop=True)
+        self.data = self.data.groupby('Ticker').apply(calc_rolling_percentile).reset_index()
         
         # Drop rows where we don't have enough history for rolling calculation
         before_drop = len(self.data)
