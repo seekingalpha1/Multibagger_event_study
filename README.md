@@ -11,7 +11,8 @@ The study tracks post-event performance after stocks cross these multiple thresh
 - **Survivorship-bias free**: Uses all historical S&P 500 members (including delisted companies), not just current constituents
 - **Realistic entry price**: Rolling 5th percentile over 252 trading days (1 year) as the baseline — no cherry-picking of entry points
 - **Cooldown period**: 90-day minimum gap between events for the same stock to avoid clustering
-- **Multiple time horizons**: 1Y, 2Y, 3Y, 5Y, 10Y forward-looking periods to avoid cherry-picking of holding periods
+- **Multiple time horizons**: 1Y, 2Y, 3Y, 5Y, 10Y forward-looking periods (KPI tables focus on 1Y-5Y)
+- **Benchmark comparison**: Calculates excess returns vs. S&P 500 index to measure true alpha
 
 ## Project Structure
 
@@ -19,7 +20,8 @@ The study tracks post-event performance after stocks cross these multiple thresh
 Multibagger_event_study/
 ├── download_sp500_data.py      # Phase 1: Data acquisition & cleaning
 ├── analyze_winner_stocks.py    # Phase 2: Event study analysis
-├── summary_template.html       # HTML template for interactive results
+├── summary_template.html       # HTML template for legacy results table
+├── kpi_tables_template.html    # HTML template for new KPI tables
 └── README.md
 ```
 
@@ -93,9 +95,12 @@ python analyze_winner_stocks.py --list-runs
 **Output files (per run):**
 | File | Description |
 |------|-------------|
-| `summary_statistics.csv` | Main results table (one row per multiple, all KPIs) |
-| `summary_statistics.html` | Interactive HTML table with period/metric filtering |
-| `detailed_results.csv` | One row per event with forward returns for all periods |
+| `kpi_tables.html` | **NEW:** Structured KPI tables (Total Return, Excess Return, Distribution) per multiple |
+| `kpi_tables.csv` | **NEW:** KPI tables in CSV format for further analysis |
+| `multiple_distribution.csv` | **NEW:** Detailed multiple distribution data (buckets: 0x-1x, 1x-2x, ..., >10x) |
+| `summary_statistics.csv` | Legacy results table (one row per multiple, all KPIs) |
+| `summary_statistics.html` | Legacy interactive HTML table with period/metric filtering |
+| `detailed_results.csv` | One row per event with forward returns and excess returns for all periods |
 | `detected_events.csv` | All detected crossing events |
 | `next_multiple_probabilities.csv` | Probability of reaching higher multiples |
 | `run_config.json` | Configuration parameters used for this run |
@@ -112,6 +117,29 @@ The entry price is defined as the **rolling 5th percentile of closing prices ove
 An event is triggered when the stock's closing price crosses a multiple threshold (2x, 3x, ..., 10x) relative to its rolling entry price **from below**. A 90-day cooldown between events for the same stock/multiple prevents double-counting clustered crossings.
 
 ### KPIs Calculated
+
+#### New Structured KPI Tables (kpi_tables.html)
+
+Separate table for each multiple category (2x, 3x, 4x, 5x, 10x) with three structured blocks:
+
+**KPI Block 1: Total Return ab Event Date**
+- Return percentiles (25%, 50%, 75%) displayed as range
+- CAGR for each percentile
+- Percentage of events with total return > 0%
+
+**KPI Block 2: Excess Return vs. S&P 500**
+- Excess return percentiles (25%, 50%, 75%) - Stock Return minus S&P 500 Return
+- Excess CAGR for each percentile
+- Percentage of events with excess return > 0% (beating the market)
+
+**KPI Block 3: Multiple-Verteilung am Periodenende**
+- Distribution of events into 7 buckets based on final multiple achieved:
+  - 0x-1x (loss from entry price)
+  - 1x-2x, 2x-3x, 3x-4x, 4x-5x, 5x-10x
+  - >10x (super performers)
+- Each bucket shows percentage and absolute count (N=...)
+
+#### Legacy Summary Statistics (summary_statistics.html)
 
 For each (Multiple, Follow-up Period) combination:
 
@@ -143,6 +171,9 @@ When running the analysis with `--run-name`, results are saved to a subdirectory
 ```
 analysis_results/
 ├── baseline/
+│   ├── kpi_tables.html              # NEW: Structured KPI tables
+│   ├── kpi_tables.csv               # NEW: KPI tables in CSV
+│   ├── multiple_distribution.csv    # NEW: Multiple distribution data
 │   ├── summary_statistics.csv
 │   ├── summary_statistics.html
 │   ├── detailed_results.csv
