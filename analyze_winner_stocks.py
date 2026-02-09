@@ -14,7 +14,8 @@ Key Features:
 
 import pandas as pd
 import numpy as np
-from datetime import timedelta
+from datetime import datetime, timedelta
+import json
 import warnings
 from tqdm import tqdm
 from pathlib import Path
@@ -837,34 +838,55 @@ class WinnerStocksAnalyzer:
         Save all results to files.
         """
         output_path = Path(output_dir)
-        output_path.mkdir(exist_ok=True)
-        
+        output_path.mkdir(parents=True, exist_ok=True)
+
         print(f"\nSaving results to {output_dir}/...")
-        
+
         # Save detailed results
         if hasattr(self, 'results'):
             self.results.to_csv(output_path / 'detailed_results.csv', index=False)
             print("Saved detailed_results.csv")
-        
+
         # Save summary statistics
         if hasattr(self, 'summary'):
             self.summary.to_csv(output_path / 'summary_statistics.csv', index=False)
             print("Saved summary_statistics.csv")
-            
+
             # Also save as HTML
             self._create_summary_html(output_path)
             print("Saved summary_statistics.html")
-        
+
         # Save events
         if hasattr(self, 'events'):
             self.events.to_csv(output_path / 'detected_events.csv', index=False)
             print("Saved detected_events.csv")
-        
+
         # Save next multiple probabilities
         if hasattr(self, 'next_multiple_results'):
             self.next_multiple_results.to_csv(output_path / 'next_multiple_probabilities.csv', index=False)
             print("Saved next_multiple_probabilities.csv")
-        
+
+        # Save run configuration
+        run_config = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'rolling_window': self.rolling_window,
+            'percentile': self.percentile,
+            'cooldown_days': self.cooldown_days,
+            'multiples': self.multiples,
+            'followup_periods': self.followup_periods,
+            'date_range': [
+                self.data['Date'].min().strftime('%Y-%m-%d'),
+                self.data['Date'].max().strftime('%Y-%m-%d')
+            ],
+            'unique_tickers': int(self.data['Ticker'].nunique()),
+            'total_events': len(self.events) if hasattr(self, 'events') else 0,
+            'total_results': len(self.results) if hasattr(self, 'results') else 0
+        }
+
+        with open(output_path / 'run_config.json', 'w') as f:
+            json.dump(run_config, f, indent=2)
+        print("Saved run_config.json")
+
         print(f"\nAll results saved to {output_dir}/")
     
     def run_full_analysis(self, output_dir='analysis_results'):
@@ -913,39 +935,153 @@ class WinnerStocksAnalyzer:
         return self.summary
 
 
+def list_runs(base_dir='analysis_results'):
+    """
+    List all saved analysis runs with their configurations.
+    """
+    base_path = Path(base_dir)
+
+    if not base_path.exists():
+        print(f"No analysis results found. Directory '{base_dir}/' does not exist.")
+        return
+
+    # Check for run_config.json in the base directory itself (non-versioned run)
+    runs = []
+    base_config = base_path / 'run_config.json'
+    if base_config.exists():
+        with open(base_config, 'r') as f:
+            config = json.load(f)
+        runs.append(('(default)', config))
+
+    # Check subdirectories
+    for subdir in sorted(base_path.iterdir()):
+        if subdir.is_dir():
+            config_file = subdir / 'run_config.json'
+            if config_file.exists():
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+                runs.append((subdir.name, config))
+
+    if not runs:
+        print("No saved runs found.")
+        return
+
+    print(f"\n{'='*90}")
+    print(f"{'SAVED ANALYSIS RUNS':^90}")
+    print(f"{'='*90}")
+    print(f"\n{'Run Name':<20} {'Timestamp':<22} {'Window':<8} {'Pctl':<6} {'Cooldown':<10} {'Events':<8} {'Date Range'}")
+    print(f"{'-'*20} {'-'*22} {'-'*8} {'-'*6} {'-'*10} {'-'*8} {'-'*23}")
+
+    for name, config in runs:
+        timestamp = config.get('timestamp', 'N/A')
+        window = config.get('rolling_window', 'N/A')
+        pctl = config.get('percentile', 'N/A')
+        cooldown = config.get('cooldown_days', 'N/A')
+        events = config.get('total_events', 'N/A')
+        date_range = config.get('date_range', ['N/A', 'N/A'])
+        date_str = f"{date_range[0]} to {date_range[1]}"
+
+        print(f"{name:<20} {timestamp:<22} {str(window):<8} {str(pctl):<6} {str(cooldown):<10} {str(events):<8} {date_str}")
+
+    print(f"\nTotal: {len(runs)} run(s) found in {base_dir}/")
+
+
 def main():
     """
-    Main function to run analysis.
+    Main function to run analysis with CLI argument support.
     """
+    import argparse
     from download_sp500_data import SP500DataManager
-    
+
+    parser = argparse.ArgumentParser(
+        description='Analyze winner stocks (Multibagger events) in the S&P 500.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python analyze_winner_stocks.py                                  # Default run
+  python analyze_winner_stocks.py --run-name baseline              # Named run
+  python analyze_winner_stocks.py --run-name cd60 --cooldown-days 60
+  python analyze_winner_stocks.py --run-name p10 --percentile 10
+  python analyze_winner_stocks.py --list-runs                      # Show all runs
+        """
+    )
+
+    parser.add_argument('--run-name', type=str, default=None,
+                        help='Name for this analysis run. Results are saved to analysis_results/<run-name>/. '
+                             'If not provided, results are saved directly to analysis_results/.')
+    parser.add_argument('--rolling-window', type=int, default=None,
+                        help='Rolling window in trading days for entry price calculation (default: 252)')
+    parser.add_argument('--percentile', type=int, default=None,
+                        help='Percentile for rolling entry price (default: 5)')
+    parser.add_argument('--cooldown-days', type=int, default=None,
+                        help='Cooldown period in days between events (default: 90)')
+    parser.add_argument('--list-runs', action='store_true',
+                        help='List all saved analysis runs and exit')
+    parser.add_argument('--export-ticker', type=str, default=None,
+                        help='Export detailed Excel workbook for a specific ticker (e.g., AAPL)')
+
+    args = parser.parse_args()
+
+    # Handle --list-runs
+    if args.list_runs:
+        list_runs()
+        return
+
     print("Loading S&P 500 historical data...")
-    
+
     # Load data
     manager = SP500DataManager()
     df, metadata = manager.load_data()
-    
+
     if df is None:
         print("ERROR: Could not load data. Please run download_sp500_data.py first.")
         return
-    
+
     # Only analyze stocks that were in S&P 500
     print(f"\nFiltering for S&P 500 members only...")
     df_sp500 = df[df['in_sp500']].copy()
     print(f"Rows after filtering: {len(df_sp500):,} (from {len(df):,})")
-    
-    # Run analysis
-    analyzer = WinnerStocksAnalyzer(df_sp500)
-    summary = analyzer.run_full_analysis()
 
-    print("\n" + "="*70)
-    print("EXAMPLE: Exporting single ticker data")
-    print("="*70)
-    if len(analyzer.events) > 0:
-        example_ticker = "AAPL" # analyzer.events.iloc[0]['ticker']
-        analyzer.export_ticker_to_excel(example_ticker)
-        print(f"\nTo export another ticker, use:")
-        print(f"  analyzer.export_ticker_to_excel('YOUR_TICKER')")
+    # Create analyzer
+    analyzer = WinnerStocksAnalyzer(df_sp500)
+
+    # Apply parameter overrides
+    if args.rolling_window is not None:
+        analyzer.rolling_window = args.rolling_window
+        print(f"Override: rolling_window = {args.rolling_window}")
+    if args.percentile is not None:
+        analyzer.percentile = args.percentile
+        print(f"Override: percentile = {args.percentile}")
+    if args.cooldown_days is not None:
+        analyzer.cooldown_days = args.cooldown_days
+        print(f"Override: cooldown_days = {args.cooldown_days}")
+
+    # Determine output directory
+    base_dir = 'analysis_results'
+    if args.run_name:
+        output_dir = str(Path(base_dir) / args.run_name)
+    else:
+        output_dir = base_dir
+
+    # Run analysis
+    summary = analyzer.run_full_analysis(output_dir=output_dir)
+
+    # Export ticker if requested
+    if args.export_ticker:
+        analyzer.export_ticker_to_excel(args.export_ticker, output_dir=output_dir)
+    else:
+        print("\n" + "="*70)
+        print("EXAMPLE: Exporting single ticker data")
+        print("="*70)
+        if hasattr(analyzer, 'events') and len(analyzer.events) > 0:
+            example_ticker = "AAPL"
+            analyzer.export_ticker_to_excel(example_ticker, output_dir=output_dir)
+            print(f"\nTo export another ticker, use:")
+            print(f"  python analyze_winner_stocks.py --export-ticker YOUR_TICKER", end="")
+            if args.run_name:
+                print(f" --run-name {args.run_name}")
+            else:
+                print()
 
 
 if __name__ == "__main__":
