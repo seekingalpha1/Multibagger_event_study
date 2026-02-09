@@ -19,7 +19,8 @@ The study tracks post-event performance after stocks cross these multiple thresh
 Multibagger_event_study/
 ├── download_sp500_data.py      # Phase 1: Data acquisition & cleaning
 ├── analyze_winner_stocks.py    # Phase 2: Event study analysis
-├── summary_template.html       # HTML template for interactive results
+├── summary_template.html       # HTML template for interactive summary statistics
+├── kpi_tables_template.html    # HTML template for structured KPI tables
 └── README.md
 ```
 
@@ -88,6 +89,9 @@ python analyze_winner_stocks.py --run-name aggressive --cooldown-days 30 --perce
 
 # List all saved runs and their configurations
 python analyze_winner_stocks.py --list-runs
+
+# Export detailed Excel workbook for a single ticker
+python analyze_winner_stocks.py --export-ticker AAPL
 ```
 
 **Output files (per run):**
@@ -98,8 +102,11 @@ python analyze_winner_stocks.py --list-runs
 | `detailed_results.csv` | One row per event with forward returns for all periods |
 | `detected_events.csv` | All detected crossing events |
 | `next_multiple_probabilities.csv` | Probability of reaching higher multiples |
+| `multiple_distribution.csv` | Distribution of final prices in buckets (0x-1x, 1x-2x, ..., >10x) |
+| `kpi_tables.csv` | Structured KPI data organized by blocks |
+| `kpi_tables.html` | Interactive KPI tables with block-based layout |
 | `run_config.json` | Configuration parameters used for this run |
-| `ticker_analysis_*.xlsx` | Per-ticker detailed Excel workbook (optional) |
+| `ticker_analysis_*.xlsx` | Per-ticker detailed Excel workbook (optional, via `--export-ticker`) |
 
 ## Methodology
 
@@ -126,6 +133,17 @@ For each (Multiple, Follow-up Period) combination:
 | **Higher Multiples** | Probability of reaching each higher multiple (e.g., from 3x: prob of 4x, 5x, ..., 10x) |
 | **MDD Until Next** | Drawdown endured on the path to the next multiple (25th/50th/75th percentile) |
 | **Return If Not Reached** | Return distribution for events that did NOT reach the next multiple |
+| **Multiple Distribution** | Distribution of final prices in buckets: 0x-1x, 1x-2x, 2x-3x, 3x-4x, 4x-5x, 5x-10x, >10x |
+
+### KPI Tables
+
+In addition to the summary statistics, the analysis generates structured **KPI tables** (one per multiple: 2x, 3x, 4x, 5x, 10x) organized into blocks:
+
+| Block | Metrics |
+|-------|---------|
+| **Total Return** | Return percentiles (25th/50th/75th), CAGR percentiles, % events with return > 0 |
+| **Excess Return vs S&P 500** | Excess return percentiles, excess CAGR percentiles, % events with excess return > 0 |
+| **Multiple Distribution** | Bucket percentages (0x-1x, 1x-2x, ..., >10x), event counts per bucket |
 
 ### Data Cleaning
 
@@ -148,6 +166,9 @@ analysis_results/
 │   ├── detailed_results.csv
 │   ├── detected_events.csv
 │   ├── next_multiple_probabilities.csv
+│   ├── multiple_distribution.csv
+│   ├── kpi_tables.csv
+│   ├── kpi_tables.html
 │   └── run_config.json
 ├── cooldown_60/
 │   ├── ...
