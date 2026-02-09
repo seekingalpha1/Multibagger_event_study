@@ -22,6 +22,7 @@ from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
+import yfinance as yf
 
 warnings.filterwarnings('ignore')
 
@@ -61,7 +62,52 @@ class WinnerStocksAnalyzer:
         print(f"Data shape: {self.data.shape}")
         print(f"Date range: {self.data['Date'].min()} to {self.data['Date'].max()}")
         print(f"Unique tickers: {self.data['Ticker'].nunique()}")
-        
+
+        # Load S&P 500 index data for excess return calculations
+        self._load_sp500_index_data()
+
+    def _load_sp500_index_data(self):
+        """
+        Load S&P 500 index data (^GSPC) for calculating excess returns.
+        """
+        print("\nLoading S&P 500 index data for excess return calculations...")
+
+        try:
+            # Get date range from stock data
+            start_date = self.data['Date'].min()
+            end_date = self.data['Date'].max()
+
+            # Download S&P 500 index data
+            sp500_index = yf.download('^GSPC', start=start_date, end=end_date, progress=False)
+
+            if sp500_index.empty:
+                print("Warning: Could not download S&P 500 index data. Excess returns will not be calculated.")
+                self.sp500_index = None
+                return
+
+            # Reset index to get Date as a column
+            sp500_index = sp500_index.reset_index()
+
+            # Rename columns if needed (yfinance returns 'Close' or might have multi-index)
+            if isinstance(sp500_index.columns, pd.MultiIndex):
+                sp500_index.columns = sp500_index.columns.get_level_values(0)
+
+            # Keep only Date and Close
+            self.sp500_index = sp500_index[['Date', 'Close']].copy()
+            self.sp500_index.columns = ['Date', 'SP500_Close']
+
+            # Ensure Date is datetime
+            self.sp500_index['Date'] = pd.to_datetime(self.sp500_index['Date'])
+            self.sp500_index = self.sp500_index.sort_values('Date').reset_index(drop=True)
+
+            print(f"Loaded S&P 500 index data: {len(self.sp500_index)} rows")
+            print(f"S&P 500 date range: {self.sp500_index['Date'].min()} to {self.sp500_index['Date'].max()}")
+
+        except Exception as e:
+            print(f"Error loading S&P 500 index data: {e}")
+            print("Excess returns will not be calculated.")
+            self.sp500_index = None
+
     def calculate_rolling_entry_price(self):
         """
         Calculate rolling 5th percentile as realistic entry price.
@@ -179,7 +225,14 @@ class WinnerStocksAnalyzer:
                 'entry_price': event['entry_price'],
                 'in_sp500': event['in_sp500']
             }
-            
+
+            # Get S&P 500 price at event date for excess return calculation
+            sp500_event_price = None
+            if self.sp500_index is not None:
+                sp500_at_event = self.sp500_index[self.sp500_index['Date'] <= event_date]
+                if len(sp500_at_event) > 0:
+                    sp500_event_price = sp500_at_event.iloc[-1]['SP500_Close']
+
             # Calculate metrics for each follow-up period
             for period_name, period_days in self.followup_periods.items():
                 # Get data for this period
@@ -194,7 +247,19 @@ class WinnerStocksAnalyzer:
                 min_price = period_data['Close'].min()
                 
                 total_return = (final_price - event_price) / event_price
-                
+
+                # Calculate S&P 500 return and excess return for this period
+                sp500_return = None
+                excess_return = None
+                if sp500_event_price is not None and self.sp500_index is not None:
+                    # Get S&P 500 price at period end
+                    period_end_date = period_data.iloc[-1]['Date']
+                    sp500_at_period_end = self.sp500_index[self.sp500_index['Date'] <= period_end_date]
+                    if len(sp500_at_period_end) > 0:
+                        sp500_final_price = sp500_at_period_end.iloc[-1]['SP500_Close']
+                        sp500_return = (sp500_final_price - sp500_event_price) / sp500_event_price
+                        excess_return = total_return - sp500_return
+
                 # Calculate Maximum Drawdown
                 cumulative_returns = (period_data['Close'] / event_price) - 1
                 running_max = cumulative_returns.cummax()
@@ -207,6 +272,8 @@ class WinnerStocksAnalyzer:
                 
                 # Store results
                 result[f'{period_name}_return'] = total_return
+                result[f'{period_name}_sp500_return'] = sp500_return
+                result[f'{period_name}_excess_return'] = excess_return
                 result[f'{period_name}_final_price'] = final_price
                 result[f'{period_name}_max_price'] = max_price
                 result[f'{period_name}_min_price'] = min_price
@@ -293,9 +360,67 @@ class WinnerStocksAnalyzer:
         
         self.next_multiple_results = pd.DataFrame(next_multiple_results)
         print(f"Calculated {len(self.next_multiple_results):,} next-multiple checks")
-        
+
         return self.next_multiple_results
-    
+
+    def calculate_multiple_distribution(self):
+        """
+        Calculate the distribution of multiples at the end of each period.
+        Categorizes events into buckets: 0x-1x, 1x-2x, 2x-3x, 3x-4x, 4x-5x, 5x-10x, >10x.
+        """
+        print("\nCalculating multiple distribution at period ends...")
+
+        distribution_results = []
+
+        for idx, row in tqdm(self.results.iterrows(), total=len(self.results), desc="Calculating distributions"):
+            ticker = row['ticker']
+            event_date = row['event_date']
+            current_multiple = row['multiple']
+            entry_price = row['entry_price']
+
+            for period_name in self.followup_periods.keys():
+                # Check if data exists for this period
+                return_col = f'{period_name}_return'
+                if return_col not in row or pd.isna(row[return_col]):
+                    continue
+
+                final_price = row[f'{period_name}_final_price']
+
+                # Calculate the multiple from entry price at period end
+                final_multiple = final_price / entry_price if entry_price > 0 else 0
+
+                # Categorize into buckets
+                if final_multiple < 1:
+                    bucket = '0x-1x'
+                elif final_multiple < 2:
+                    bucket = '1x-2x'
+                elif final_multiple < 3:
+                    bucket = '2x-3x'
+                elif final_multiple < 4:
+                    bucket = '3x-4x'
+                elif final_multiple < 5:
+                    bucket = '4x-5x'
+                elif final_multiple < 10:
+                    bucket = '5x-10x'
+                else:
+                    bucket = '>10x'
+
+                distribution_results.append({
+                    'ticker': ticker,
+                    'event_date': event_date,
+                    'current_multiple': current_multiple,
+                    'period': period_name,
+                    'entry_price': entry_price,
+                    'final_price': final_price,
+                    'final_multiple': final_multiple,
+                    'bucket': bucket
+                })
+
+        self.multiple_distribution = pd.DataFrame(distribution_results)
+        print(f"Calculated multiple distribution for {len(self.multiple_distribution):,} event-period combinations")
+
+        return self.multiple_distribution
+
     def create_summary_statistics(self):
         """
         Create summary statistics table with all KPIs.
@@ -393,9 +518,125 @@ class WinnerStocksAnalyzer:
         
         self.summary = pd.DataFrame(summary_rows)
         print(f"Created summary table with {len(self.summary)} rows")
-        
+
         return self.summary
-    
+
+    def create_kpi_tables(self):
+        """
+        Create new KPI tables with structured blocks for each multiple category.
+        Creates one table per multiple (2x, 3x, 4x, 5x, 10x) with:
+        - KPI Block 1: Total Return (percentiles, CAGR, % > 0)
+        - KPI Block 2: Excess Return vs S&P 500 (percentiles, CAGR, % > 0)
+        - KPI Block 3: Multiple Distribution (bucket percentages with N)
+        """
+        print("\nCreating new KPI tables...")
+
+        # Only use 1Y, 2Y, 3Y, 5Y (not 10Y)
+        periods = ['1Y', '2Y', '3Y', '5Y']
+        # Focus on key multiples: 2x, 3x, 4x, 5x, 10x
+        target_multiples = [2, 3, 4, 5, 10]
+
+        kpi_tables = {}
+
+        for multiple in target_multiples:
+            # Filter events for this multiple
+            multiple_events = self.results[self.results['multiple'] == multiple]
+
+            if len(multiple_events) == 0:
+                continue
+
+            # Dictionary to store KPIs for this multiple
+            kpis = {
+                'multiple': f"{multiple}x",
+                'n_events': len(multiple_events)
+            }
+
+            for period in periods:
+                years = int(period.replace('Y', ''))
+
+                # --- KPI Block 1: Total Return ---
+                returns = multiple_events[f'{period}_return'].dropna()
+
+                if len(returns) > 0:
+                    # Percentiles
+                    kpis[f'{period}_total_return_25pct'] = returns.quantile(0.25)
+                    kpis[f'{period}_total_return_50pct'] = returns.quantile(0.50)
+                    kpis[f'{period}_total_return_75pct'] = returns.quantile(0.75)
+
+                    # CAGRs
+                    kpis[f'{period}_total_cagr_25pct'] = self._compute_cagr_value(returns.quantile(0.25), years)
+                    kpis[f'{period}_total_cagr_50pct'] = self._compute_cagr_value(returns.quantile(0.50), years)
+                    kpis[f'{period}_total_cagr_75pct'] = self._compute_cagr_value(returns.quantile(0.75), years)
+
+                    # % with return > 0
+                    kpis[f'{period}_total_return_positive_pct'] = (returns > 0).mean() * 100
+
+                # --- KPI Block 2: Excess Return vs S&P 500 ---
+                excess_returns = multiple_events[f'{period}_excess_return'].dropna()
+
+                if len(excess_returns) > 0:
+                    # Percentiles
+                    kpis[f'{period}_excess_return_25pct'] = excess_returns.quantile(0.25)
+                    kpis[f'{period}_excess_return_50pct'] = excess_returns.quantile(0.50)
+                    kpis[f'{period}_excess_return_75pct'] = excess_returns.quantile(0.75)
+
+                    # CAGRs
+                    kpis[f'{period}_excess_cagr_25pct'] = self._compute_cagr_value(excess_returns.quantile(0.25), years)
+                    kpis[f'{period}_excess_cagr_50pct'] = self._compute_cagr_value(excess_returns.quantile(0.50), years)
+                    kpis[f'{period}_excess_cagr_75pct'] = self._compute_cagr_value(excess_returns.quantile(0.75), years)
+
+                    # % with excess return > 0
+                    kpis[f'{period}_excess_return_positive_pct'] = (excess_returns > 0).mean() * 100
+
+                # --- KPI Block 3: Multiple Distribution ---
+                # Filter distribution data for this multiple and period
+                dist_data = self.multiple_distribution[
+                    (self.multiple_distribution['current_multiple'] == multiple) &
+                    (self.multiple_distribution['period'] == period)
+                ]
+
+                if len(dist_data) > 0:
+                    total_count = len(dist_data)
+                    buckets = ['0x-1x', '1x-2x', '2x-3x', '3x-4x', '4x-5x', '5x-10x', '>10x']
+
+                    for bucket in buckets:
+                        bucket_count = len(dist_data[dist_data['bucket'] == bucket])
+                        bucket_pct = (bucket_count / total_count * 100) if total_count > 0 else 0
+                        kpis[f'{period}_dist_{bucket}_pct'] = bucket_pct
+                        kpis[f'{period}_dist_{bucket}_n'] = bucket_count
+
+            kpi_tables[f'{multiple}x'] = kpis
+
+        self.kpi_tables = kpi_tables
+        print(f"Created KPI tables for {len(kpi_tables)} multiples")
+
+        return kpi_tables
+
+    def _compute_cagr_value(self, total_return, years):
+        """
+        Compute CAGR as a decimal value (not formatted string).
+
+        Parameters:
+        -----------
+        total_return : float
+            Total return as decimal (e.g., 0.5 for 50%)
+        years : int
+            Number of years
+
+        Returns:
+        --------
+        float : CAGR value as decimal, or None if invalid
+        """
+        if pd.isna(total_return) or years <= 0:
+            return None
+
+        growth = 1 + total_return
+        if growth <= 0:
+            return None
+
+        cagr = growth ** (1 / years) - 1
+        return cagr
+
     def _create_summary_html(self, output_path):
         """
         Create an HTML table from summary statistics with nice formatting.
@@ -486,7 +727,257 @@ class WinnerStocksAnalyzer:
         # Save HTML file
         with open(output_path / 'summary_statistics.html', 'w', encoding='utf-8') as f:
             f.write(html)
-    
+
+    def _create_kpi_tables_html(self, output_path):
+        """
+        Create HTML output for the new KPI tables.
+        One table per multiple category (2x, 3x, 4x, 5x, 10x).
+        """
+        if not hasattr(self, 'kpi_tables') or not self.kpi_tables:
+            print("Warning: No KPI tables to generate HTML from.")
+            return
+
+        print("\nGenerating HTML for KPI tables...")
+
+        # Load HTML template
+        template_path = Path(__file__).parent / 'kpi_tables_template.html'
+
+        if not template_path.exists():
+            print(f"Warning: KPI tables template not found at {template_path}")
+            print("Creating simple HTML output instead.")
+            self._create_simple_kpi_html(output_path)
+            return
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template = f.read()
+
+        # Generate HTML for all tables
+        periods = ['1Y', '2Y', '3Y', '5Y']
+        all_tables_html = ''
+
+        for multiple_key in ['2x', '3x', '4x', '5x', '10x']:
+            if multiple_key not in self.kpi_tables:
+                continue
+
+            kpis = self.kpi_tables[multiple_key]
+            n_events = kpis.get('n_events', 0)
+
+            # Build table HTML for this multiple
+            table_html = f'''
+            <div class="kpi-table-container">
+                <h2>{multiple_key} Events (N={n_events})</h2>
+                <table class="kpi-table">
+                    <thead>
+                        <tr>
+                            <th class="kpi-name">KPI</th>
+'''
+
+            # Add period headers
+            for period in periods:
+                table_html += f'                            <th>{period}</th>\n'
+
+            table_html += '''                        </tr>
+                    </thead>
+                    <tbody>
+'''
+
+            # --- KPI Block 1: Total Return ---
+            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Total Return ab Event Date</strong></td></tr>\n'
+
+            # Row 1: Total Return Percentiles
+            table_html += '                        <tr>\n'
+            table_html += '                            <td class="kpi-name">Total Return (25%-50%-75%)</td>\n'
+            for period in periods:
+                p25 = kpis.get(f'{period}_total_return_25pct')
+                p50 = kpis.get(f'{period}_total_return_50pct')
+                p75 = kpis.get(f'{period}_total_return_75pct')
+                if p25 is not None and p50 is not None and p75 is not None:
+                    table_html += f'                            <td><span class="range-small">{p25*100:.1f}%</span> - <span class="range-mid">{p50*100:.1f}%</span> - <span class="range-small">{p75*100:.1f}%</span></td>\n'
+                else:
+                    table_html += '                            <td>N/A</td>\n'
+            table_html += '                        </tr>\n'
+
+            # Row 2: CAGR
+            table_html += '                        <tr>\n'
+            table_html += '                            <td class="kpi-name">CAGR (25%-50%-75%)</td>\n'
+            for period in periods:
+                c25 = kpis.get(f'{period}_total_cagr_25pct')
+                c50 = kpis.get(f'{period}_total_cagr_50pct')
+                c75 = kpis.get(f'{period}_total_cagr_75pct')
+                if c25 is not None and c50 is not None and c75 is not None:
+                    table_html += f'                            <td><span class="range-small">{c25*100:.1f}%</span> - <span class="range-mid">{c50*100:.1f}%</span> - <span class="range-small">{c75*100:.1f}%</span></td>\n'
+                else:
+                    table_html += '                            <td>N/A</td>\n'
+            table_html += '                        </tr>\n'
+
+            # Row 3: % with Return > 0
+            table_html += '                        <tr>\n'
+            table_html += '                            <td class="kpi-name">% Events mit Total Return > 0%</td>\n'
+            for period in periods:
+                pct = kpis.get(f'{period}_total_return_positive_pct')
+                if pct is not None:
+                    table_html += f'                            <td>{pct:.1f}%</td>\n'
+                else:
+                    table_html += '                            <td>N/A</td>\n'
+            table_html += '                        </tr>\n'
+
+            # --- KPI Block 2: Excess Return ---
+            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Excess Return vs. S&P 500 ab Event Date</strong></td></tr>\n'
+
+            # Row 4: Excess Return Percentiles
+            table_html += '                        <tr>\n'
+            table_html += '                            <td class="kpi-name">Excess Return (25%-50%-75%)</td>\n'
+            for period in periods:
+                p25 = kpis.get(f'{period}_excess_return_25pct')
+                p50 = kpis.get(f'{period}_excess_return_50pct')
+                p75 = kpis.get(f'{period}_excess_return_75pct')
+                if p25 is not None and p50 is not None and p75 is not None:
+                    table_html += f'                            <td><span class="range-small">{p25*100:.1f}%</span> - <span class="range-mid">{p50*100:.1f}%</span> - <span class="range-small">{p75*100:.1f}%</span></td>\n'
+                else:
+                    table_html += '                            <td>N/A</td>\n'
+            table_html += '                        </tr>\n'
+
+            # Row 5: Excess CAGR
+            table_html += '                        <tr>\n'
+            table_html += '                            <td class="kpi-name">Excess CAGR (25%-50%-75%)</td>\n'
+            for period in periods:
+                c25 = kpis.get(f'{period}_excess_cagr_25pct')
+                c50 = kpis.get(f'{period}_excess_cagr_50pct')
+                c75 = kpis.get(f'{period}_excess_cagr_75pct')
+                if c25 is not None and c50 is not None and c75 is not None:
+                    table_html += f'                            <td><span class="range-small">{c25*100:.1f}%</span> - <span class="range-mid">{c50*100:.1f}%</span> - <span class="range-small">{c75*100:.1f}%</span></td>\n'
+                else:
+                    table_html += '                            <td>N/A</td>\n'
+            table_html += '                        </tr>\n'
+
+            # Row 6: % with Excess Return > 0
+            table_html += '                        <tr>\n'
+            table_html += '                            <td class="kpi-name">% Events mit Excess Return > 0%</td>\n'
+            for period in periods:
+                pct = kpis.get(f'{period}_excess_return_positive_pct')
+                if pct is not None:
+                    table_html += f'                            <td>{pct:.1f}%</td>\n'
+                else:
+                    table_html += '                            <td>N/A</td>\n'
+            table_html += '                        </tr>\n'
+
+            # --- KPI Block 3: Multiple Distribution ---
+            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Multiple-Verteilung am Periodenende</strong></td></tr>\n'
+
+            buckets = ['0x-1x', '1x-2x', '2x-3x', '3x-4x', '4x-5x', '5x-10x', '>10x']
+            for bucket in buckets:
+                table_html += '                        <tr>\n'
+                table_html += f'                            <td class="kpi-name">{bucket}</td>\n'
+                for period in periods:
+                    pct = kpis.get(f'{period}_dist_{bucket}_pct')
+                    n = kpis.get(f'{period}_dist_{bucket}_n', 0)
+                    if pct is not None:
+                        table_html += f'                            <td>{pct:.1f}%<br><span class="bucket-count">N={n}</span></td>\n'
+                    else:
+                        table_html += '                            <td>N/A</td>\n'
+                table_html += '                        </tr>\n'
+
+            table_html += '''                    </tbody>
+                </table>
+            </div>
+'''
+
+            all_tables_html += table_html
+
+        # Replace placeholder in template
+        html = template.replace('{{TABLES}}', all_tables_html)
+
+        # Replace configuration placeholders
+        html = html.replace('{{ROLLING_WINDOW}}', str(self.rolling_window))
+        html = html.replace('{{PERCENTILE}}', str(self.percentile))
+        html = html.replace('{{COOLDOWN_DAYS}}', str(self.cooldown_days))
+
+        # Get date range
+        date_range_start = self.data['Date'].min().strftime('%Y-%m-%d')
+        date_range_end = self.data['Date'].max().strftime('%Y-%m-%d')
+        html = html.replace('{{DATE_RANGE_START}}', date_range_start)
+        html = html.replace('{{DATE_RANGE_END}}', date_range_end)
+
+        # Get total events
+        total_events = len(self.events) if hasattr(self, 'events') else 0
+        html = html.replace('{{TOTAL_EVENTS}}', f'{total_events:,}')
+
+        # Save HTML file
+        output_file = output_path / 'kpi_tables.html'
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(html)
+
+        print(f"Saved KPI tables HTML to {output_file}")
+
+    def _create_simple_kpi_html(self, output_path):
+        """
+        Create a simple HTML output for KPI tables if template is not available.
+        """
+        print("Creating simple KPI HTML output...")
+
+        html = '''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Event Study KPI Tables</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .kpi-table-container { margin-bottom: 40px; }
+        .kpi-table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        .kpi-table th, .kpi-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .kpi-table th { background-color: #4CAF50; color: white; }
+        .kpi-table .block-header { background-color: #e0e0e0; font-weight: bold; }
+        .kpi-name { font-weight: bold; }
+        .range-small { font-size: 0.9em; color: #666; }
+        .range-mid { font-weight: bold; }
+        .bucket-count { font-size: 0.8em; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Event Study KPI Tables</h1>
+'''
+
+        # Generate simple tables
+        periods = ['1Y', '2Y', '3Y', '5Y']
+
+        for multiple_key in ['2x', '3x', '4x', '5x', '10x']:
+            if multiple_key not in self.kpi_tables:
+                continue
+
+            kpis = self.kpi_tables[multiple_key]
+            n_events = kpis.get('n_events', 0)
+
+            html += f'<div class="kpi-table-container"><h2>{multiple_key} Events (N={n_events})</h2>'
+            html += '<table class="kpi-table"><thead><tr><th class="kpi-name">KPI</th>'
+
+            for period in periods:
+                html += f'<th>{period}</th>'
+
+            html += '</tr></thead><tbody>'
+
+            # Add all KPI rows (simplified version)
+            html += '<tr class="block-header"><td colspan="5"><strong>Total Return ab Event Date</strong></td></tr>'
+            html += '<tr><td class="kpi-name">Total Return (25%-50%-75%)</td>'
+            for period in periods:
+                p25 = kpis.get(f'{period}_total_return_25pct')
+                p50 = kpis.get(f'{period}_total_return_50pct')
+                p75 = kpis.get(f'{period}_total_return_75pct')
+                if p25 is not None and p50 is not None and p75 is not None:
+                    html += f'<td><span class="range-small">{p25*100:.1f}%</span> - <span class="range-mid">{p50*100:.1f}%</span> - <span class="range-small">{p75*100:.1f}%</span></td>'
+                else:
+                    html += '<td>N/A</td>'
+            html += '</tr>'
+
+            html += '</tbody></table></div>'
+
+        html += '</body></html>'
+
+        output_file = output_path / 'kpi_tables.html'
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(html)
+
+        print(f"Saved simple KPI tables HTML to {output_file}")
+
     def _format_cell_value(self, row, period, metric):
         """
         Format a single cell value, combining ranges where applicable.
@@ -866,6 +1357,22 @@ class WinnerStocksAnalyzer:
             self.next_multiple_results.to_csv(output_path / 'next_multiple_probabilities.csv', index=False)
             print("Saved next_multiple_probabilities.csv")
 
+        # Save multiple distribution
+        if hasattr(self, 'multiple_distribution'):
+            self.multiple_distribution.to_csv(output_path / 'multiple_distribution.csv', index=False)
+            print("Saved multiple_distribution.csv")
+
+        # Save KPI tables
+        if hasattr(self, 'kpi_tables'):
+            # Save as CSV
+            kpi_df = pd.DataFrame(self.kpi_tables).T
+            kpi_df.to_csv(output_path / 'kpi_tables.csv')
+            print("Saved kpi_tables.csv")
+
+            # Save as HTML
+            self._create_kpi_tables_html(output_path)
+            print("Saved kpi_tables.html")
+
         # Save run configuration
         run_config = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -912,11 +1419,17 @@ class WinnerStocksAnalyzer:
         
         # Step 4: Calculate next multiple probabilities
         self.calculate_next_multiple_probability()
-        
-        # Step 5: Create summary statistics
+
+        # Step 5: Calculate multiple distribution
+        self.calculate_multiple_distribution()
+
+        # Step 6: Create summary statistics (old format)
         self.create_summary_statistics()
-        
-        # Step 6: Save results
+
+        # Step 7: Create new KPI tables (new format)
+        self.create_kpi_tables()
+
+        # Step 8: Save results
         self.save_results(output_dir)
         
         print("\n" + "="*70)
@@ -924,11 +1437,14 @@ class WinnerStocksAnalyzer:
         print("="*70)
         print(f"\nResults saved to: {output_dir}/")
         print("\nGenerated files:")
+        print("  - kpi_tables.html (NEW: KPI tables with Total/Excess Return & Distribution)")
+        print("  - kpi_tables.csv (NEW: KPI tables in CSV format)")
         print("  - summary_statistics.csv (main results table)")
         print("  - summary_statistics.html (interactive HTML table)")
         print("  - detailed_results.csv (all individual events)")
         print("  - detected_events.csv (all crossing events)")
         print("  - next_multiple_probabilities.csv")
+        print("  - multiple_distribution.csv (NEW: multiple distribution data)")
         print("\nTo export data for a specific ticker to Excel:")
         print("  analyzer.export_ticker_to_excel('AAPL')")
         

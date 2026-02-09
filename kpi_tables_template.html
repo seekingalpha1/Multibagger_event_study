@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Study - KPI Tabellen</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .config-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .config-info strong {
+            color: #333;
+        }
+
+        .kpi-table-container {
+            margin-bottom: 50px;
+        }
+
+        .kpi-table-container h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3498db;
+            font-size: 1.5em;
+        }
+
+        .kpi-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.95em;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .kpi-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .kpi-table th {
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #ddd;
+        }
+
+        .kpi-table td {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+        }
+
+        .kpi-table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .kpi-table tbody tr:hover {
+            background-color: #e9ecef;
+            transition: background-color 0.2s;
+        }
+
+        .kpi-name {
+            font-weight: 600;
+            color: #2c3e50;
+            width: 300px;
+        }
+
+        .block-header td {
+            background: linear-gradient(135deg, #e0e7ff 0%, #cfe2ff 100%) !important;
+            color: #1e3a8a;
+            font-weight: bold;
+            padding: 10px 15px;
+            border-top: 2px solid #3498db;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .range-small {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .range-mid {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.05em;
+        }
+
+        .bucket-count {
+            display: block;
+            font-size: 0.75em;
+            color: #999;
+            margin-top: 3px;
+            font-style: italic;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .kpi-table {
+                font-size: 0.85em;
+            }
+
+            .kpi-table th,
+            .kpi-table td {
+                padding: 8px 10px;
+            }
+
+            .kpi-name {
+                width: auto;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .container {
+                box-shadow: none;
+                padding: 0;
+            }
+
+            .kpi-table-container {
+                page-break-inside: avoid;
+                margin-bottom: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Event Study - KPI Auswertung</h1>
+
+        <div class="config-info">
+            <p><strong>Analyse-Konfiguration:</strong></p>
+            <p>Rolling Window: {{ROLLING_WINDOW}} Tage | Perzentil: {{PERCENTILE}}% | Cooldown: {{COOLDOWN_DAYS}} Tage</p>
+            <p>Datenbereich: {{DATE_RANGE_START}} bis {{DATE_RANGE_END}}</p>
+            <p>Gesamt Events: {{TOTAL_EVENTS}}</p>
+        </div>
+
+        {{TABLES}}
+
+    </div>
+</body>
+</html>
