@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Event Study - KPI Tabellen</title>
+    <title>Event Study - KPI Tables</title>
     <style>
         * {
             margin: 0;
@@ -73,7 +73,7 @@
 
         .kpi-table th {
             padding: 12px 15px;
-            text-align: left;
+            text-align: center;
             font-weight: 600;
             border: 1px solid #ddd;
         }
@@ -82,6 +82,7 @@
             padding: 10px 15px;
             border: 1px solid #ddd;
             background-color: #fff;
+            text-align: center;
         }
 
         .kpi-table tbody tr:nth-child(even) {
@@ -125,6 +126,14 @@
             color: #999;
             margin-top: 3px;
             font-style: italic;
+        }
+
+        .cum-prob {
+            display: block;
+            font-size: 0.7em;
+            color: #667eea;
+            margin-top: 2px;
+            font-weight: 600;
         }
 
         /* Responsive design */
@@ -172,13 +181,13 @@
 </head>
 <body>
     <div class="container">
-        <h1>Event Study - KPI Auswertung</h1>
+        <h1>Event Study - KPI Analysis</h1>
 
         <div class="config-info">
-            <p><strong>Analyse-Konfiguration:</strong></p>
-            <p>Rolling Window: {{ROLLING_WINDOW}} Tage | Perzentil: {{PERCENTILE}}% | Cooldown: {{COOLDOWN_DAYS}} Tage</p>
-            <p>Datenbereich: {{DATE_RANGE_START}} bis {{DATE_RANGE_END}}</p>
-            <p>Gesamt Events: {{TOTAL_EVENTS}}</p>
+            <p><strong>Analysis Configuration:</strong></p>
+            <p>Rolling Window: {{ROLLING_WINDOW}} Days | Percentile: {{PERCENTILE}}% | Cooldown: {{COOLDOWN_DAYS}} Days</p>
+            <p>Data Range: {{DATE_RANGE_START}} to {{DATE_RANGE_END}}</p>
+            <p>Total Events: {{TOTAL_EVENTS}}</p>
         </div>
 
         {{TABLES}}

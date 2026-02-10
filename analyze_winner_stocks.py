@@ -729,6 +729,28 @@ class WinnerStocksAnalyzer:
         with open(output_path / 'summary_statistics.html', 'w', encoding='utf-8') as f:
             f.write(html)
 
+    @staticmethod
+    def _fmt_pct(value, decimals=1):
+        """
+        Format a percentage value using American accounting convention:
+        negative values are shown in parentheses, e.g. (5.3%) instead of -5.3%.
+
+        Parameters:
+        -----------
+        value : float
+            Value as decimal (e.g. -0.053 for -5.3%)
+        decimals : int
+            Number of decimal places
+
+        Returns:
+        --------
+        str : Formatted percentage string
+        """
+        pct = value * 100
+        if pct < 0:
+            return f'({abs(pct):.{decimals}f}%)'
+        return f'{pct:.{decimals}f}%'
+
     def _create_kpi_tables_html(self, output_path):
         """
         Create HTML output for the new KPI tables.
@@ -783,7 +805,7 @@ class WinnerStocksAnalyzer:
 '''
 
             # --- KPI Block 1: Total Return ---
-            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Total Return ab Event Date</strong></td></tr>\n'
+            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Total Return from Event Date</strong></td></tr>\n'
 
             # Row 1: Total Return Percentiles
             table_html += '                        <tr>\n'
@@ -793,7 +815,7 @@ class WinnerStocksAnalyzer:
                 p50 = kpis.get(f'{period}_total_return_50pct')
                 p75 = kpis.get(f'{period}_total_return_75pct')
                 if p25 is not None and p50 is not None and p75 is not None:
-                    table_html += f'                            <td><span class="range-small">{p25*100:.1f}%</span> - <span class="range-mid">{p50*100:.1f}%</span> - <span class="range-small">{p75*100:.1f}%</span></td>\n'
+                    table_html += f'                            <td><span class="range-small">{self._fmt_pct(p25)}</span> - <span class="range-mid">{self._fmt_pct(p50)}</span> - <span class="range-small">{self._fmt_pct(p75)}</span></td>\n'
                 else:
                     table_html += '                            <td>N/A</td>\n'
             table_html += '                        </tr>\n'
@@ -806,14 +828,14 @@ class WinnerStocksAnalyzer:
                 c50 = kpis.get(f'{period}_total_cagr_50pct')
                 c75 = kpis.get(f'{period}_total_cagr_75pct')
                 if c25 is not None and c50 is not None and c75 is not None:
-                    table_html += f'                            <td><span class="range-small">{c25*100:.1f}%</span> - <span class="range-mid">{c50*100:.1f}%</span> - <span class="range-small">{c75*100:.1f}%</span></td>\n'
+                    table_html += f'                            <td><span class="range-small">{self._fmt_pct(c25)}</span> - <span class="range-mid">{self._fmt_pct(c50)}</span> - <span class="range-small">{self._fmt_pct(c75)}</span></td>\n'
                 else:
                     table_html += '                            <td>N/A</td>\n'
             table_html += '                        </tr>\n'
 
             # Row 3: % with Return > 0
             table_html += '                        <tr>\n'
-            table_html += '                            <td class="kpi-name">% Events mit Total Return > 0%</td>\n'
+            table_html += '                            <td class="kpi-name">% Events with Total Return > 0%</td>\n'
             for period in periods:
                 pct = kpis.get(f'{period}_total_return_positive_pct')
                 if pct is not None:
@@ -823,7 +845,7 @@ class WinnerStocksAnalyzer:
             table_html += '                        </tr>\n'
 
             # --- KPI Block 2: Excess Return ---
-            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Excess Return vs. S&P 500 ab Event Date</strong></td></tr>\n'
+            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Excess Return vs. S&P 500 from Event Date</strong></td></tr>\n'
 
             # Row 4: Excess Return Percentiles
             table_html += '                        <tr>\n'
@@ -833,7 +855,7 @@ class WinnerStocksAnalyzer:
                 p50 = kpis.get(f'{period}_excess_return_50pct')
                 p75 = kpis.get(f'{period}_excess_return_75pct')
                 if p25 is not None and p50 is not None and p75 is not None:
-                    table_html += f'                            <td><span class="range-small">{p25*100:.1f}%</span> - <span class="range-mid">{p50*100:.1f}%</span> - <span class="range-small">{p75*100:.1f}%</span></td>\n'
+                    table_html += f'                            <td><span class="range-small">{self._fmt_pct(p25)}</span> - <span class="range-mid">{self._fmt_pct(p50)}</span> - <span class="range-small">{self._fmt_pct(p75)}</span></td>\n'
                 else:
                     table_html += '                            <td>N/A</td>\n'
             table_html += '                        </tr>\n'
@@ -846,14 +868,14 @@ class WinnerStocksAnalyzer:
                 c50 = kpis.get(f'{period}_excess_cagr_50pct')
                 c75 = kpis.get(f'{period}_excess_cagr_75pct')
                 if c25 is not None and c50 is not None and c75 is not None:
-                    table_html += f'                            <td><span class="range-small">{c25*100:.1f}%</span> - <span class="range-mid">{c50*100:.1f}%</span> - <span class="range-small">{c75*100:.1f}%</span></td>\n'
+                    table_html += f'                            <td><span class="range-small">{self._fmt_pct(c25)}</span> - <span class="range-mid">{self._fmt_pct(c50)}</span> - <span class="range-small">{self._fmt_pct(c75)}</span></td>\n'
                 else:
                     table_html += '                            <td>N/A</td>\n'
             table_html += '                        </tr>\n'
 
             # Row 6: % with Excess Return > 0
             table_html += '                        <tr>\n'
-            table_html += '                            <td class="kpi-name">% Events mit Excess Return > 0%</td>\n'
+            table_html += '                            <td class="kpi-name">% Events with Excess Return > 0%</td>\n'
             for period in periods:
                 pct = kpis.get(f'{period}_excess_return_positive_pct')
                 if pct is not None:
@@ -863,9 +885,20 @@ class WinnerStocksAnalyzer:
             table_html += '                        </tr>\n'
 
             # --- KPI Block 3: Multiple Distribution ---
-            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Multiple-Verteilung am Periodenende</strong></td></tr>\n'
+            table_html += '                        <tr class="block-header"><td colspan="5"><strong>Multiple Distribution at End of Period</strong></td></tr>\n'
 
             buckets = ['0x-1x', '1x-2x', '2x-3x', '3x-4x', '4x-5x', '5x-10x', '>10x']
+            # Pre-compute cumulative probabilities per period
+            cum_probs = {}
+            for period in periods:
+                running = 0.0
+                cum_probs[period] = {}
+                for bucket in buckets:
+                    pct = kpis.get(f'{period}_dist_{bucket}_pct')
+                    if pct is not None:
+                        running += pct
+                    cum_probs[period][bucket] = running
+
             for bucket in buckets:
                 table_html += '                        <tr>\n'
                 table_html += f'                            <td class="kpi-name">{bucket}</td>\n'
@@ -873,7 +906,8 @@ class WinnerStocksAnalyzer:
                     pct = kpis.get(f'{period}_dist_{bucket}_pct')
                     n = kpis.get(f'{period}_dist_{bucket}_n', 0)
                     if pct is not None:
-                        table_html += f'                            <td>{pct:.1f}%<br><span class="bucket-count">N={n}</span></td>\n'
+                        cum = cum_probs[period][bucket]
+                        table_html += f'                            <td>{pct:.1f}%<br><span class="bucket-count">N={n}</span><br><span class="cum-prob">Cum: {cum:.1f}%</span></td>\n'
                     else:
                         table_html += '                            <td>N/A</td>\n'
                 table_html += '                        </tr>\n'
@@ -925,7 +959,7 @@ class WinnerStocksAnalyzer:
         body { font-family: Arial, sans-serif; margin: 20px; }
         .kpi-table-container { margin-bottom: 40px; }
         .kpi-table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-        .kpi-table th, .kpi-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .kpi-table th, .kpi-table td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         .kpi-table th { background-color: #4CAF50; color: white; }
         .kpi-table .block-header { background-color: #e0e0e0; font-weight: bold; }
         .kpi-name { font-weight: bold; }
@@ -957,14 +991,14 @@ class WinnerStocksAnalyzer:
             html += '</tr></thead><tbody>'
 
             # Add all KPI rows (simplified version)
-            html += '<tr class="block-header"><td colspan="5"><strong>Total Return ab Event Date</strong></td></tr>'
+            html += '<tr class="block-header"><td colspan="5"><strong>Total Return from Event Date</strong></td></tr>'
             html += '<tr><td class="kpi-name">Total Return (25%-50%-75%)</td>'
             for period in periods:
                 p25 = kpis.get(f'{period}_total_return_25pct')
                 p50 = kpis.get(f'{period}_total_return_50pct')
                 p75 = kpis.get(f'{period}_total_return_75pct')
                 if p25 is not None and p50 is not None and p75 is not None:
-                    html += f'<td><span class="range-small">{p25*100:.1f}%</span> - <span class="range-mid">{p50*100:.1f}%</span> - <span class="range-small">{p75*100:.1f}%</span></td>'
+                    html += f'<td><span class="range-small">{self._fmt_pct(p25)}</span> - <span class="range-mid">{self._fmt_pct(p50)}</span> - <span class="range-small">{self._fmt_pct(p75)}</span></td>'
                 else:
                     html += '<td>N/A</td>'
             html += '</tr>'
@@ -1080,9 +1114,9 @@ class WinnerStocksAnalyzer:
 
         # Format values
         if is_percentage:
-            str_25 = f'{val_25*100:.1f}%'
-            str_50 = f'{val_50*100:.1f}%'
-            str_75 = f'{val_75*100:.1f}%'
+            str_25 = self._fmt_pct(val_25)
+            str_50 = self._fmt_pct(val_50)
+            str_75 = self._fmt_pct(val_75)
         else:
             str_25 = f'{val_25:.1f}'
             str_50 = f'{val_50:.1f}'
@@ -1128,6 +1162,8 @@ class WinnerStocksAnalyzer:
         if growth <= 0:
             return 'N/A'
         cagr = growth ** (1 / years) - 1
+        if cagr < 0:
+            return f'({abs(cagr)*100:.1f}%)'
         return f'{cagr*100:.1f}%'
 
     def _format_implied_cagr(self, row, period):
