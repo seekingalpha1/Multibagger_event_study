@@ -4,7 +4,7 @@ Event study analyzing **Multibagger events in the S&P 500**. A "Multibagger" is 
 
 **Core question: How long should you hold your winners?**
 
-The study tracks post-event performance after stocks cross these multiple thresholds, measuring forward returns, drawdowns, probabilities of reaching the next multiple, and more.
+The study tracks post-event performance after stocks cross these multiple thresholds, measuring forward returns, probabilities of reaching the next multiple, and more.
 
 ## Key Design Decisions
 
@@ -28,7 +28,6 @@ Multibagger_event_study/
 
 ```
 pandas
-numpy
 yfinance
 tqdm
 openpyxl
@@ -98,7 +97,6 @@ python analyze_winner_stocks.py --export-ticker AAPL
 | File | Description |
 |------|-------------|
 | `summary_statistics.csv` | Main results table (one row per multiple, all KPIs) |
-| `summary_statistics.html` | Interactive HTML table with period/metric filtering |
 | `detailed_results.csv` | One row per event with forward returns for all periods |
 | `detected_events.csv` | All detected crossing events |
 | `next_multiple_probabilities.csv` | Probability of reaching higher multiples |
@@ -126,13 +124,8 @@ For each (Multiple, Follow-up Period) combination:
 |----------|---------|
 | **Returns** | 25th, 50th, 75th percentile, mean total return |
 | **CAGR** | Implied compound annual growth rates |
-| **Risk** | Maximum Drawdown (mean, median, worst), annualized volatility |
-| **Win Rate** | Percentage of events with positive forward return |
-| **Sharpe Ratio** | Simplified mean return / mean volatility |
-| **Next Multiple** | Probability of reaching next multiple, avg days to reach |
+| **Next Multiple** | Probability of reaching next multiple |
 | **Higher Multiples** | Probability of reaching each higher multiple (e.g., from 3x: prob of 4x, 5x, ..., 10x) |
-| **MDD Until Next** | Drawdown endured on the path to the next multiple (25th/50th/75th percentile) |
-| **Return If Not Reached** | Return distribution for events that did NOT reach the next multiple |
 | **Multiple Distribution** | Distribution of final prices in buckets: 0x-1x, 1x-2x, 2x-3x, 3x-4x, 4x-5x, 5x-10x, >10x |
 
 ### KPI Tables
@@ -162,7 +155,6 @@ When running the analysis with `--run-name`, results are saved to a subdirectory
 analysis_results/
 ├── baseline/
 │   ├── summary_statistics.csv
-│   ├── summary_statistics.html
 │   ├── detailed_results.csv
 │   ├── detected_events.csv
 │   ├── next_multiple_probabilities.csv
