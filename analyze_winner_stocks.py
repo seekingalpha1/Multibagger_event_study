@@ -43,6 +43,7 @@ class WinnerStocksAnalyzer:
             Date, Ticker, Close, in_sp500, etc.
         """
         self.data = price_data.copy()
+        self.data["Date"] = pd.to_datetime(self.data["Date"], utc=True)
         self.data = self.data.sort_values(['Ticker', 'Date']).reset_index(drop=True)
         
         # Configuration
@@ -97,7 +98,7 @@ class WinnerStocksAnalyzer:
             self.sp500_index.columns = ['Date', 'SP500_Close']
 
             # Ensure Date is datetime
-            self.sp500_index['Date'] = pd.to_datetime(self.sp500_index['Date'])
+            self.sp500_index['Date'] = pd.to_datetime(self.sp500_index['Date'], utc=True)
             self.sp500_index = self.sp500_index.sort_values('Date').reset_index(drop=True)
 
             print(f"Loaded S&P 500 index data: {len(self.sp500_index)} rows")
