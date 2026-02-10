@@ -9,11 +9,10 @@ Key Features:
 - Detects crossing events (from below to above threshold)
 - 90-day cooldown period between events
 - Tracks performance over 1, 2, 3, 5, and 10 years
-- Comprehensive KPIs including returns, drawdowns, probabilities
+- Comprehensive KPIs including returns and probabilities
 """
 
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 import json
 import warnings
@@ -261,16 +260,6 @@ class WinnerStocksAnalyzer:
                         sp500_return = (sp500_final_price - sp500_event_price) / sp500_event_price
                         excess_return = total_return - sp500_return
 
-                # Calculate Maximum Drawdown
-                cumulative_returns = (period_data['Close'] / event_price) - 1
-                running_max = cumulative_returns.cummax()
-                drawdown = cumulative_returns - running_max
-                max_drawdown = drawdown.min()
-                
-                # Calculate volatility (annualized)
-                returns = period_data['Close'].pct_change().dropna()
-                volatility = returns.std() * np.sqrt(252)  # Annualized
-                
                 # Store results
                 result[f'{period_name}_return'] = total_return
                 result[f'{period_name}_sp500_return'] = sp500_return
@@ -278,8 +267,6 @@ class WinnerStocksAnalyzer:
                 result[f'{period_name}_final_price'] = final_price
                 result[f'{period_name}_max_price'] = max_price
                 result[f'{period_name}_min_price'] = min_price
-                result[f'{period_name}_mdd'] = max_drawdown
-                result[f'{period_name}_volatility'] = volatility
                 result[f'{period_name}_days_available'] = len(period_data)
             
             results.append(result)
@@ -292,28 +279,26 @@ class WinnerStocksAnalyzer:
     def calculate_next_multiple_probability(self):
         """
         Calculate probability of reaching the next multiple.
-        Also tracks MDD until next multiple is reached and final returns if not reached.
         """
         print("\nCalculating probability of reaching next multiple...")
-        
+
         next_multiple_results = []
-        
+
         for idx, event in tqdm(self.events.iterrows(), total=len(self.events), desc="Calculating probabilities"):
             ticker = event['ticker']
             event_date = event['event_date']
             current_multiple = event['multiple']
             entry_price = event['entry_price']
-            event_price = event['event_price']
-            
+
             # Get future price data
             future_data = self.data[
-                (self.data['Ticker'] == ticker) & 
+                (self.data['Ticker'] == ticker) &
                 (self.data['Date'] > event_date)
             ].sort_values('Date').reset_index(drop=True)
-            
+
             if len(future_data) == 0:
                 continue
-            
+
             # Check each follow-up period
             for period_name, period_days in self.followup_periods.items():
                 period_data = future_data[future_data.index < period_days]
@@ -325,38 +310,14 @@ class WinnerStocksAnalyzer:
                 for next_mult in range(current_multiple + 1, 11):
                     target_price = entry_price * next_mult
                     reached = (period_data['Close'] >= target_price).any()
-                    
-                    if reached:
-                        # Find when it was reached
-                        first_reach_idx = period_data[period_data['Close'] >= target_price].index[0]
-                        days_to_reach = first_reach_idx
-                        
-                        # Calculate MDD from event to when target was reached
-                        data_until_reach = period_data.iloc[:first_reach_idx + 1]
-                        cumulative_returns = (data_until_reach['Close'] / event_price) - 1
-                        running_max = cumulative_returns.cummax()
-                        drawdown = cumulative_returns - running_max
-                        mdd_until_reach = drawdown.min()
-                        
-                        final_return_if_not_reached = np.nan
-                    else:
-                        days_to_reach = np.nan
-                        mdd_until_reach = np.nan
-                        
-                        # Calculate final return if target was NOT reached
-                        final_price = period_data.iloc[-1]['Close']
-                        final_return_if_not_reached = (final_price - event_price) / event_price
-                    
+
                     next_multiple_results.append({
                         'ticker': ticker,
                         'event_date': event_date,
                         'current_multiple': current_multiple,
                         'next_multiple': next_mult,
                         'period': period_name,
-                        'reached': reached,
-                        'days_to_reach': days_to_reach,
-                        'mdd_until_reach': mdd_until_reach,
-                        'final_return_if_not_reached': final_return_if_not_reached
+                        'reached': reached
                     })
         
         self.next_multiple_results = pd.DataFrame(next_multiple_results)
@@ -444,34 +405,20 @@ class WinnerStocksAnalyzer:
             # Calculate statistics for each period
             for period_name in self.followup_periods.keys():
                 returns = multiple_events[f'{period_name}_return'].dropna()
-                mdds = multiple_events[f'{period_name}_mdd'].dropna()
-                
+
                 if len(returns) > 0:
                     # Return percentiles
                     row[f'{period_name}_return_25pct'] = returns.quantile(0.25)
                     row[f'{period_name}_return_50pct'] = returns.quantile(0.50)
                     row[f'{period_name}_return_75pct'] = returns.quantile(0.75)
                     row[f'{period_name}_return_mean'] = returns.mean()
-                    
-                    # MDD statistics
-                    row[f'{period_name}_mdd_mean'] = mdds.mean()
-                    row[f'{period_name}_mdd_median'] = mdds.median()
-                    row[f'{period_name}_mdd_worst'] = mdds.min()
-                    
-                    # Win rate (positive returns)
-                    row[f'{period_name}_win_rate'] = (returns > 0).mean()
-                    
-                    # Sharpe ratio (simplified: mean return / volatility)
-                    vols = multiple_events[f'{period_name}_volatility'].dropna()
-                    if len(vols) > 0:
-                        sharpe = (returns.mean() / vols.mean()) if vols.mean() > 0 else np.nan
-                        row[f'{period_name}_sharpe'] = sharpe
-                    
+
                     # Sample size
                     row[f'{period_name}_n_samples'] = len(returns)
+
                 # Probability of reaching higher multiples
                 if hasattr(self, 'next_multiple_results'):
-                    # --- KPIs for NEXT multiple (current + 1) ---
+                    # --- Probability for NEXT multiple (current + 1) ---
                     next_mult_data = self.next_multiple_results[
                         (self.next_multiple_results['current_multiple'] == multiple) &
                         (self.next_multiple_results['next_multiple'] == multiple + 1) &
@@ -481,28 +428,6 @@ class WinnerStocksAnalyzer:
                     if len(next_mult_data) > 0:
                         prob = next_mult_data['reached'].mean()
                         row[f'{period_name}_prob_next_multiple'] = prob
-
-                        # Average days to reach NEXT (for those that reached)
-                        reached_data = next_mult_data[next_mult_data['reached']]
-                        if len(reached_data) > 0:
-                            avg_days = reached_data['days_to_reach'].mean()
-                            row[f'{period_name}_avg_days_to_next'] = avg_days
-
-                            # MDD until NEXT multiple is reached (percentiles)
-                            mdd_until_next = reached_data['mdd_until_reach'].dropna()
-                            if len(mdd_until_next) > 0:
-                                row[f'{period_name}_mdd_until_next_25pct'] = mdd_until_next.quantile(0.25)
-                                row[f'{period_name}_mdd_until_next_50pct'] = mdd_until_next.quantile(0.50)
-                                row[f'{period_name}_mdd_until_next_75pct'] = mdd_until_next.quantile(0.75)
-
-                        # Returns if NEXT multiple is NOT reached (percentiles)
-                        not_reached_data = next_mult_data[~next_mult_data['reached']]
-                        if len(not_reached_data) > 0:
-                            returns_not_reached = not_reached_data['final_return_if_not_reached'].dropna()
-                            if len(returns_not_reached) > 0:
-                                row[f'{period_name}_return_not_next_25pct'] = returns_not_reached.quantile(0.25)
-                                row[f'{period_name}_return_not_next_50pct'] = returns_not_reached.quantile(0.50)
-                                row[f'{period_name}_return_not_next_75pct'] = returns_not_reached.quantile(0.75)
 
                     # --- Probabilities for ALL higher multiples ---
                     for target_mult in range(multiple + 1, 11):
@@ -638,97 +563,6 @@ class WinnerStocksAnalyzer:
         cagr = growth ** (1 / years) - 1
         return cagr
 
-    def _create_summary_html(self, output_path):
-        """
-        Create an HTML table from summary statistics with nice formatting.
-        Uses external HTML template for better maintainability.
-        
-        Parameters:
-        -----------
-        output_path : Path
-            Directory to save the HTML file
-        """
-        if not hasattr(self, 'summary') or self.summary is None:
-            return
-        
-        # Load HTML template
-        template_path = Path(__file__).parent / 'summary_template.html'
-        
-        if not template_path.exists():
-            print(f"Warning: HTML template not found at {template_path}")
-            print("Skipping HTML generation.")
-            return
-        
-        with open(template_path, 'r', encoding='utf-8') as f:
-            template = f.read()
-        
-        # Prepare data
-        df = self.summary.copy()
-        
-        # Define column order and their metric types
-        metric_config = [
-            ('prob_higher', 'Prob Higher Multiples', 'prob_higher'),
-            ('avg_days_to_next', 'Avg Days Next', 'days'),
-            ('mdd_until_next', 'MDD Until Next', 'mdd_next'),
-            ('return_not_next', 'Return Not Next', 'return_not_next'),
-            ('return', 'Return Range', 'return'),
-            ('implied_cagr', 'Implied CAGRs', 'implied_cagr'),
-        ]
-        
-        # Group columns by period
-        periods = ['1Y', '2Y', '3Y', '5Y', '10Y']
-        
-        # Build period headers with data-period attribute
-        period_headers = ''
-        for period in periods:
-            col_count = len(metric_config)
-            period_headers += f'<th colspan="{col_count}" data-period="{period}">{period}</th>\n'
-        
-        # Build metric headers with data-period-metric attribute
-        metric_headers = ''
-        for period in periods:
-            for metric_key, display_name, metric_type in metric_config:
-                metric_headers += f'<th data-period-metric="{period}-{metric_type}">{display_name}</th>\n'
-        
-        # Build table rows with data-period-metric attribute
-        table_rows = ''
-        for _, row in df.iterrows():
-            table_rows += '                <tr>\n'
-            table_rows += f'                    <td class="multiple-col">{row["multiple"]}</td>\n'
-            table_rows += f'                    <td>{row["n_events"]}</td>\n'
-            
-            for period in periods:
-                for metric_key, display_name, metric_type in metric_config:
-                    value = self._format_cell_value(row, period, metric_key)
-                    table_rows += f'                    <td data-period-metric="{period}-{metric_type}">{value}</td>\n'
-            
-            table_rows += '                </tr>\n'
-        
-        # Replace placeholders in template
-        html = template.replace('{{PERIOD_HEADERS}}', period_headers)
-        html = html.replace('{{METRIC_HEADERS}}', metric_headers)
-        html = html.replace('{{TABLE_ROWS}}', table_rows)
-        
-        # Replace configuration placeholders
-        html = html.replace('{{ROLLING_WINDOW}}', str(self.rolling_window))
-        html = html.replace('{{PERCENTILE}}', str(self.percentile))
-        html = html.replace('{{COOLDOWN_DAYS}}', str(self.cooldown_days))
-        html = html.replace('{{MULTIPLES}}', ', '.join([f'{m}x' for m in self.multiples]))
-        
-        # Get date range from original data
-        date_range_start = self.data['Date'].min().strftime('%Y-%m-%d')
-        date_range_end = self.data['Date'].max().strftime('%Y-%m-%d')
-        html = html.replace('{{DATE_RANGE_START}}', date_range_start)
-        html = html.replace('{{DATE_RANGE_END}}', date_range_end)
-        
-        # Get total events count
-        total_events = len(self.events) if hasattr(self, 'events') else 0
-        html = html.replace('{{TOTAL_EVENTS}}', f'{total_events:,}')
-        
-        # Save HTML file
-        with open(output_path / 'summary_statistics.html', 'w', encoding='utf-8') as f:
-            f.write(html)
-
     @staticmethod
     def _fmt_pct(value, decimals=1):
         """
@@ -764,12 +598,6 @@ class WinnerStocksAnalyzer:
 
         # Load HTML template
         template_path = Path(__file__).parent / 'kpi_tables_template.html'
-
-        if not template_path.exists():
-            print(f"Warning: KPI tables template not found at {template_path}")
-            print("Creating simple HTML output instead.")
-            self._create_simple_kpi_html(output_path)
-            return
 
         with open(template_path, 'r', encoding='utf-8') as f:
             template = f.read()
@@ -944,263 +772,6 @@ class WinnerStocksAnalyzer:
 
         print(f"Saved KPI tables HTML to {output_file}")
 
-    def _create_simple_kpi_html(self, output_path):
-        """
-        Create a simple HTML output for KPI tables if template is not available.
-        """
-        print("Creating simple KPI HTML output...")
-
-        html = '''<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Event Study KPI Tables</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .kpi-table-container { margin-bottom: 40px; }
-        .kpi-table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-        .kpi-table th, .kpi-table td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-        .kpi-table th { background-color: #4CAF50; color: white; }
-        .kpi-table .block-header { background-color: #e0e0e0; font-weight: bold; }
-        .kpi-name { font-weight: bold; }
-        .range-small { font-size: 0.9em; color: #666; }
-        .range-mid { font-weight: bold; }
-        .bucket-count { font-size: 0.8em; color: #666; }
-    </style>
-</head>
-<body>
-    <h1>Event Study KPI Tables</h1>
-'''
-
-        # Generate simple tables
-        periods = ['1Y', '2Y', '3Y', '5Y']
-
-        for multiple_key in ['2x', '3x', '4x', '5x', '10x']:
-            if multiple_key not in self.kpi_tables:
-                continue
-
-            kpis = self.kpi_tables[multiple_key]
-            n_events = kpis.get('n_events', 0)
-
-            html += f'<div class="kpi-table-container"><h2>{multiple_key} Events (N={n_events})</h2>'
-            html += '<table class="kpi-table"><thead><tr><th class="kpi-name">KPI</th>'
-
-            for period in periods:
-                html += f'<th>{period}</th>'
-
-            html += '</tr></thead><tbody>'
-
-            # Add all KPI rows (simplified version)
-            html += '<tr class="block-header"><td colspan="5"><strong>Total Return from Event Date</strong></td></tr>'
-            html += '<tr><td class="kpi-name">Total Return (25%-50%-75%)</td>'
-            for period in periods:
-                p25 = kpis.get(f'{period}_total_return_25pct')
-                p50 = kpis.get(f'{period}_total_return_50pct')
-                p75 = kpis.get(f'{period}_total_return_75pct')
-                if p25 is not None and p50 is not None and p75 is not None:
-                    html += f'<td><span class="range-small">{self._fmt_pct(p25)}</span> - <span class="range-mid">{self._fmt_pct(p50)}</span> - <span class="range-small">{self._fmt_pct(p75)}</span></td>'
-                else:
-                    html += '<td>N/A</td>'
-            html += '</tr>'
-
-            html += '</tbody></table></div>'
-
-        html += '</body></html>'
-
-        output_file = output_path / 'kpi_tables.html'
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(html)
-
-        print(f"Saved simple KPI tables HTML to {output_file}")
-
-    def _format_cell_value(self, row, period, metric):
-        """
-        Format a single cell value, combining ranges where applicable.
-        
-        Parameters:
-        -----------
-        row : pd.Series
-            Row from summary dataframe
-        period : str
-            Period (1Y, 2Y, etc.)
-        metric : str
-            Metric name
-            
-        Returns:
-        --------
-        str : Formatted HTML value
-        """
-        if metric == 'prob_higher':
-            # Combined display of probabilities for ALL higher multiples
-            # Extract the current multiple number from the row
-            mult_str = row.get('multiple', '')
-            if isinstance(mult_str, str) and mult_str.endswith('x'):
-                current_mult = int(mult_str[:-1])
-            else:
-                return 'N/A'
-
-            parts = []
-            for target in range(current_mult + 1, 11):
-                col = f'{period}_prob_reach_{target}x'
-                if col in row and pd.notna(row[col]):
-                    prob_pct = row[col] * 100
-                    parts.append(f'<span class="prob-item">{target}x: {prob_pct:.0f}%</span>')
-
-            if parts:
-                return '<span class="prob-higher-list">' + ' '.join(parts) + '</span>'
-            return 'N/A'
-
-        elif metric == 'avg_days_to_next':
-            col = f'{period}_avg_days_to_next'
-            if col in row and pd.notna(row[col]):
-                return f'{row[col]:.0f}'
-            return 'N/A'
-
-        # Range metrics (25%, 50%, 75% combined)
-        elif metric == 'return':
-            col_25 = f'{period}_return_25pct'
-            col_50 = f'{period}_return_50pct'
-            col_75 = f'{period}_return_75pct'
-            years = int(period.replace('Y', ''))
-            return self._format_range(row, col_25, col_50, col_75, is_percentage=True, cagr_years=years)
-
-        elif metric == 'mdd_until_next':
-            col_25 = f'{period}_mdd_until_next_25pct'
-            col_50 = f'{period}_mdd_until_next_50pct'
-            col_75 = f'{period}_mdd_until_next_75pct'
-            return self._format_range(row, col_25, col_50, col_75, is_percentage=True)
-
-        elif metric == 'return_not_next':
-            col_25 = f'{period}_return_not_next_25pct'
-            col_50 = f'{period}_return_not_next_50pct'
-            col_75 = f'{period}_return_not_next_75pct'
-            return self._format_range(row, col_25, col_50, col_75, is_percentage=True)
-
-        elif metric == 'implied_cagr':
-            return self._format_implied_cagr(row, period)
-
-        return 'N/A'
-    
-    def _format_range(self, row, col_25, col_50, col_75, is_percentage=True, cagr_years=None):
-        """
-        Format a range value in the format: small - BOLD - small
-        Optionally adds a second CAGR line if cagr_years is provided.
-
-        Parameters:
-        -----------
-        row : pd.Series
-            Row from dataframe
-        col_25, col_50, col_75 : str
-            Column names for 25th, 50th, 75th percentiles
-        is_percentage : bool
-            Whether to format as percentage
-        cagr_years : int or None
-            If provided, adds a second line with annualized CAGR values
-
-        Returns:
-        --------
-        str : Formatted HTML string
-        """
-        if col_25 not in row or col_50 not in row or col_75 not in row:
-            return 'N/A'
-
-        val_25 = row[col_25]
-        val_50 = row[col_50]
-        val_75 = row[col_75]
-
-        # Check if all values are available
-        if pd.isna(val_25) or pd.isna(val_50) or pd.isna(val_75):
-            return 'N/A'
-
-        # Format values
-        if is_percentage:
-            str_25 = self._fmt_pct(val_25)
-            str_50 = self._fmt_pct(val_50)
-            str_75 = self._fmt_pct(val_75)
-        else:
-            str_25 = f'{val_25:.1f}'
-            str_50 = f'{val_50:.1f}'
-            str_75 = f'{val_75:.1f}'
-
-        # Build HTML with styling
-        html = f'<span class="range-value">'
-        html += f'<span class="small">{str_25}</span>'
-        html += f'<span class="mid"> {str_50} </span>'
-        html += f'<span class="small">{str_75}</span>'
-        html += '</span>'
-
-        # Add CAGR second line if requested
-        if cagr_years is not None and cagr_years > 0:
-            cagr_25 = self._compute_cagr(val_25, cagr_years)
-            cagr_50 = self._compute_cagr(val_50, cagr_years)
-            cagr_75 = self._compute_cagr(val_75, cagr_years)
-            html += '<br>'
-            html += f'<span class="range-value cagr-line">'
-            html += f'<span class="small">{cagr_25}</span>'
-            html += f'<span class="mid"> {cagr_50} </span>'
-            html += f'<span class="small">{cagr_75}</span>'
-            html += '</span>'
-
-        return html
-
-    def _compute_cagr(self, total_return, years):
-        """
-        Compute annualized CAGR from a total return over a number of years.
-
-        Parameters:
-        -----------
-        total_return : float
-            Total return as decimal (e.g., 0.5 for 50%)
-        years : int
-            Number of years
-
-        Returns:
-        --------
-        str : Formatted CAGR string
-        """
-        growth = 1 + total_return
-        if growth <= 0:
-            return 'N/A'
-        cagr = growth ** (1 / years) - 1
-        if cagr < 0:
-            return f'({abs(cagr)*100:.1f}%)'
-        return f'{cagr*100:.1f}%'
-
-    def _format_implied_cagr(self, row, period):
-        """
-        Format implied CAGR for reaching each higher multiple within the given period.
-        Shows what annualized return is needed from current multiple to each higher multiple.
-
-        Parameters:
-        -----------
-        row : pd.Series
-            Row from summary dataframe
-        period : str
-            Period (1Y, 2Y, etc.)
-
-        Returns:
-        --------
-        str : Formatted HTML string
-        """
-        mult_str = row.get('multiple', '')
-        if isinstance(mult_str, str) and mult_str.endswith('x'):
-            current_mult = int(mult_str[:-1])
-        else:
-            return 'N/A'
-
-        years = int(period.replace('Y', ''))
-
-        parts = []
-        for target in range(current_mult + 1, 11):
-            # Growth factor from current multiple to target multiple
-            growth = target / current_mult
-            cagr = growth ** (1 / years) - 1
-            parts.append(f'<span class="prob-item">{target}x: {cagr*100:.1f}%</span>')
-
-        if parts:
-            return '<span class="prob-higher-list">' + ' '.join(parts) + '</span>'
-        return 'N/A'
-    
     def export_ticker_to_excel(self, ticker, output_dir='analysis_results'):
         """
         Export all analysis data for a single ticker to Excel for manual verification.
@@ -1293,7 +864,7 @@ class WinnerStocksAnalyzer:
                 headers = ['Event_Date', 'Multiple'] + [
                     f'{period}_{metric}' 
                     for period in ['1Y', '2Y', '3Y', '5Y', '10Y']
-                    for metric in ['return', 'final_price', 'max_price', 'mdd']
+                    for metric in ['return', 'final_price', 'max_price']
                 ]
                 ws3.append(headers)
                 
@@ -1312,8 +883,7 @@ class WinnerStocksAnalyzer:
                         data_row.extend([
                             row.get(f'{period}_return', ''),
                             row.get(f'{period}_final_price', ''),
-                            row.get(f'{period}_max_price', ''),
-                            row.get(f'{period}_mdd', '')
+                            row.get(f'{period}_max_price', '')
                         ])
                     ws3.append(data_row)
                 
@@ -1329,28 +899,24 @@ class WinnerStocksAnalyzer:
             ].copy()
             
             if len(ticker_next) > 0:
-                headers = ['Event_Date', 'Current_Multiple', 'Next_Multiple', 'Period', 
-                          'Reached', 'Days_to_Reach', 'MDD_Until_Reach', 'Return_If_Not_Reached']
+                headers = ['Event_Date', 'Current_Multiple', 'Next_Multiple', 'Period', 'Reached']
                 ws4.append(headers)
-                
+
                 for cell in ws4[1]:
                     cell.font = Font(bold=True, color='FFFFFF')
                     cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
                     cell.alignment = Alignment(horizontal='center')
-                
+
                 for _, row in ticker_next.iterrows():
                     ws4.append([
                         row['event_date'].strftime('%Y-%m-%d'),
                         row['current_multiple'],
                         row['next_multiple'],
                         row['period'],
-                        row['reached'],
-                        row.get('days_to_reach', ''),
-                        row.get('mdd_until_reach', ''),
-                        row.get('final_return_if_not_reached', '')
+                        row['reached']
                     ])
-                
-                for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+
+                for col in ['A', 'B', 'C', 'D', 'E']:
                     ws4.column_dimensions[col].width = 18
         
         # Save file
@@ -1379,10 +945,6 @@ class WinnerStocksAnalyzer:
         if hasattr(self, 'summary'):
             self.summary.to_csv(output_path / 'summary_statistics.csv', index=False)
             print("Saved summary_statistics.csv")
-
-            # Also save as HTML
-            self._create_summary_html(output_path)
-            print("Saved summary_statistics.html")
 
         # Save events
         if hasattr(self, 'events'):
@@ -1474,14 +1036,13 @@ class WinnerStocksAnalyzer:
         print("="*70)
         print(f"\nResults saved to: {output_dir}/")
         print("\nGenerated files:")
-        print("  - kpi_tables.html (NEW: KPI tables with Total/Excess Return & Distribution)")
-        print("  - kpi_tables.csv (NEW: KPI tables in CSV format)")
+        print("  - kpi_tables.html (KPI tables with Total/Excess Return & Distribution)")
+        print("  - kpi_tables.csv (KPI tables in CSV format)")
         print("  - summary_statistics.csv (main results table)")
-        print("  - summary_statistics.html (interactive HTML table)")
         print("  - detailed_results.csv (all individual events)")
         print("  - detected_events.csv (all crossing events)")
         print("  - next_multiple_probabilities.csv")
-        print("  - multiple_distribution.csv (NEW: multiple distribution data)")
+        print("  - multiple_distribution.csv (multiple distribution data)")
         print("\nTo export data for a specific ticker to Excel:")
         print("  analyzer.export_ticker_to_excel('AAPL')")
         
