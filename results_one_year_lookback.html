@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Study - KPI Tables</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .config-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .config-info strong {
+            color: #333;
+        }
+
+        .kpi-table-container {
+            margin-bottom: 50px;
+        }
+
+        .kpi-table-container h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3498db;
+            font-size: 1.5em;
+        }
+
+        .kpi-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.95em;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .kpi-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .kpi-table th {
+            padding: 12px 15px;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid #ddd;
+        }
+
+        .kpi-table td {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            text-align: center;
+        }
+
+        .kpi-table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .kpi-table tbody tr:hover {
+            background-color: #e9ecef;
+            transition: background-color 0.2s;
+        }
+
+        .kpi-name {
+            font-weight: 600;
+            color: #2c3e50;
+            width: 300px;
+        }
+
+        .block-header td {
+            background: linear-gradient(135deg, #e0e7ff 0%, #cfe2ff 100%) !important;
+            color: #1e3a8a;
+            font-weight: bold;
+            padding: 10px 15px;
+            border-top: 2px solid #3498db;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .range-small {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .range-mid {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.05em;
+        }
+
+        .bucket-count {
+            display: block;
+            font-size: 0.75em;
+            color: #999;
+            margin-top: 3px;
+            font-style: italic;
+        }
+
+        .cum-prob {
+            display: block;
+            font-size: 0.7em;
+            color: #667eea;
+            margin-top: 2px;
+            font-weight: 600;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .kpi-table {
+                font-size: 0.85em;
+            }
+
+            .kpi-table th,
+            .kpi-table td {
+                padding: 8px 10px;
+            }
+
+            .kpi-name {
+                width: auto;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .container {
+                box-shadow: none;
+                padding: 0;
+            }
+
+            .kpi-table-container {
+                page-break-inside: avoid;
+                margin-bottom: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Event Study - KPI Analysis</h1>
+
+        <div class="config-info">
+            <p><strong>Analysis Configuration:</strong></p>
+            <p>Rolling Window: 252 Days | Percentile: 5% | Cooldown: 90 Days</p>
+            <p>Data Range: 1996-12-27 to 2026-02-06</p>
+            <p>Total Events: 1,961</p>
+        </div>
+
+        
+            <div class="kpi-table-container">
+                <h2>2x Events (N=1322)</h2>
+                <table class="kpi-table">
+                    <thead>
+                        <tr>
+                            <th class="kpi-name">KPI</th>
+                            <th>1Y</th>
+                            <th>2Y</th>
+                            <th>3Y</th>
+                            <th>5Y</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="block-header"><td colspan="5"><strong>Total Return from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Total Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(13.5%)</span> - <span class="range-mid">13.1%</span> - <span class="range-small">41.1%</span></td>
+                            <td><span class="range-small">(18.6%)</span> - <span class="range-mid">13.5%</span> - <span class="range-small">54.3%</span></td>
+                            <td><span class="range-small">(17.3%)</span> - <span class="range-mid">22.2%</span> - <span class="range-small">75.0%</span></td>
+                            <td><span class="range-small">(17.6%)</span> - <span class="range-mid">46.1%</span> - <span class="range-small">120.9%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(13.5%)</span> - <span class="range-mid">13.1%</span> - <span class="range-small">41.1%</span></td>
+                            <td><span class="range-small">(9.8%)</span> - <span class="range-mid">6.5%</span> - <span class="range-small">24.2%</span></td>
+                            <td><span class="range-small">(6.1%)</span> - <span class="range-mid">6.9%</span> - <span class="range-small">20.5%</span></td>
+                            <td><span class="range-small">(3.8%)</span> - <span class="range-mid">7.9%</span> - <span class="range-small">17.2%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Total Return > 0%</td>
+                            <td>62.5%</td>
+                            <td>60.9%</td>
+                            <td>64.4%</td>
+                            <td>67.5%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Excess Return vs. S&P 500 from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Excess Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(19.2%)</span> - <span class="range-mid">3.1%</span> - <span class="range-small">28.6%</span></td>
+                            <td><span class="range-small">(26.6%)</span> - <span class="range-mid">2.7%</span> - <span class="range-small">39.1%</span></td>
+                            <td><span class="range-small">(35.1%)</span> - <span class="range-mid">2.2%</span> - <span class="range-small">49.4%</span></td>
+                            <td><span class="range-small">(44.9%)</span> - <span class="range-mid">3.6%</span> - <span class="range-small">69.2%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">Excess CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(19.2%)</span> - <span class="range-mid">3.1%</span> - <span class="range-small">28.6%</span></td>
+                            <td><span class="range-small">(14.3%)</span> - <span class="range-mid">1.3%</span> - <span class="range-small">18.0%</span></td>
+                            <td><span class="range-small">(13.4%)</span> - <span class="range-mid">0.7%</span> - <span class="range-small">14.3%</span></td>
+                            <td><span class="range-small">(11.2%)</span> - <span class="range-mid">0.7%</span> - <span class="range-small">11.1%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Excess Return > 0%</td>
+                            <td>54.0%</td>
+                            <td>52.6%</td>
+                            <td>52.1%</td>
+                            <td>52.6%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Multiple Distribution at End of Period</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">0x-1x</td>
+                            <td>4.5%<br><span class="bucket-count">N=60</span><br><span class="cum-prob">Cum: 4.5%</span></td>
+                            <td>7.4%<br><span class="bucket-count">N=98</span><br><span class="cum-prob">Cum: 7.4%</span></td>
+                            <td>9.0%<br><span class="bucket-count">N=119</span><br><span class="cum-prob">Cum: 9.0%</span></td>
+                            <td>11.0%<br><span class="bucket-count">N=146</span><br><span class="cum-prob">Cum: 11.0%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">1x-2x</td>
+                            <td>30.5%<br><span class="bucket-count">N=403</span><br><span class="cum-prob">Cum: 35.0%</span></td>
+                            <td>30.3%<br><span class="bucket-count">N=400</span><br><span class="cum-prob">Cum: 37.7%</span></td>
+                            <td>24.6%<br><span class="bucket-count">N=325</span><br><span class="cum-prob">Cum: 33.6%</span></td>
+                            <td>20.3%<br><span class="bucket-count">N=269</span><br><span class="cum-prob">Cum: 31.4%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">2x-3x</td>
+                            <td>42.5%<br><span class="bucket-count">N=562</span><br><span class="cum-prob">Cum: 77.5%</span></td>
+                            <td>32.8%<br><span class="bucket-count">N=433</span><br><span class="cum-prob">Cum: 70.4%</span></td>
+                            <td>28.6%<br><span class="bucket-count">N=378</span><br><span class="cum-prob">Cum: 62.2%</span></td>
+                            <td>18.5%<br><span class="bucket-count">N=244</span><br><span class="cum-prob">Cum: 49.8%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">3x-4x</td>
+                            <td>13.8%<br><span class="bucket-count">N=183</span><br><span class="cum-prob">Cum: 91.4%</span></td>
+                            <td>13.6%<br><span class="bucket-count">N=180</span><br><span class="cum-prob">Cum: 84.0%</span></td>
+                            <td>17.3%<br><span class="bucket-count">N=229</span><br><span class="cum-prob">Cum: 79.5%</span></td>
+                            <td>17.5%<br><span class="bucket-count">N=231</span><br><span class="cum-prob">Cum: 67.3%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">4x-5x</td>
+                            <td>3.3%<br><span class="bucket-count">N=43</span><br><span class="cum-prob">Cum: 94.6%</span></td>
+                            <td>6.4%<br><span class="bucket-count">N=84</span><br><span class="cum-prob">Cum: 90.4%</span></td>
+                            <td>8.5%<br><span class="bucket-count">N=112</span><br><span class="cum-prob">Cum: 88.0%</span></td>
+                            <td>11.2%<br><span class="bucket-count">N=148</span><br><span class="cum-prob">Cum: 78.5%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">5x-10x</td>
+                            <td>4.0%<br><span class="bucket-count">N=53</span><br><span class="cum-prob">Cum: 98.6%</span></td>
+                            <td>7.4%<br><span class="bucket-count">N=98</span><br><span class="cum-prob">Cum: 97.8%</span></td>
+                            <td>8.7%<br><span class="bucket-count">N=115</span><br><span class="cum-prob">Cum: 96.7%</span></td>
+                            <td>15.7%<br><span class="bucket-count">N=208</span><br><span class="cum-prob">Cum: 94.3%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">>10x</td>
+                            <td>1.4%<br><span class="bucket-count">N=18</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>2.2%<br><span class="bucket-count">N=29</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>3.3%<br><span class="bucket-count">N=44</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>5.7%<br><span class="bucket-count">N=76</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="kpi-table-container">
+                <h2>3x Events (N=232)</h2>
+                <table class="kpi-table">
+                    <thead>
+                        <tr>
+                            <th class="kpi-name">KPI</th>
+                            <th>1Y</th>
+                            <th>2Y</th>
+                            <th>3Y</th>
+                            <th>5Y</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="block-header"><td colspan="5"><strong>Total Return from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Total Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(16.3%)</span> - <span class="range-mid">14.9%</span> - <span class="range-small">53.3%</span></td>
+                            <td><span class="range-small">(35.1%)</span> - <span class="range-mid">11.1%</span> - <span class="range-small">57.9%</span></td>
+                            <td><span class="range-small">(37.6%)</span> - <span class="range-mid">14.5%</span> - <span class="range-small">73.1%</span></td>
+                            <td><span class="range-small">(44.7%)</span> - <span class="range-mid">41.1%</span> - <span class="range-small">136.0%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(16.3%)</span> - <span class="range-mid">14.9%</span> - <span class="range-small">53.3%</span></td>
+                            <td><span class="range-small">(19.4%)</span> - <span class="range-mid">5.4%</span> - <span class="range-small">25.6%</span></td>
+                            <td><span class="range-small">(14.5%)</span> - <span class="range-mid">4.6%</span> - <span class="range-small">20.1%</span></td>
+                            <td><span class="range-small">(11.2%)</span> - <span class="range-mid">7.1%</span> - <span class="range-small">18.7%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Total Return > 0%</td>
+                            <td>64.7%</td>
+                            <td>56.9%</td>
+                            <td>56.5%</td>
+                            <td>63.4%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Excess Return vs. S&P 500 from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Excess Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(24.2%)</span> - <span class="range-mid">2.2%</span> - <span class="range-small">40.8%</span></td>
+                            <td><span class="range-small">(35.1%)</span> - <span class="range-mid">(2.2%)</span> - <span class="range-small">37.4%</span></td>
+                            <td><span class="range-small">(50.6%)</span> - <span class="range-mid">(4.6%)</span> - <span class="range-small">42.4%</span></td>
+                            <td><span class="range-small">(61.7%)</span> - <span class="range-mid">(0.6%)</span> - <span class="range-small">74.6%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">Excess CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(24.2%)</span> - <span class="range-mid">2.2%</span> - <span class="range-small">40.8%</span></td>
+                            <td><span class="range-small">(19.4%)</span> - <span class="range-mid">(1.1%)</span> - <span class="range-small">17.2%</span></td>
+                            <td><span class="range-small">(20.9%)</span> - <span class="range-mid">(1.6%)</span> - <span class="range-small">12.5%</span></td>
+                            <td><span class="range-small">(17.4%)</span> - <span class="range-mid">(0.1%)</span> - <span class="range-small">11.8%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Excess Return > 0%</td>
+                            <td>54.7%</td>
+                            <td>48.7%</td>
+                            <td>48.3%</td>
+                            <td>49.6%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Multiple Distribution at End of Period</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">0x-1x</td>
+                            <td>2.6%<br><span class="bucket-count">N=6</span><br><span class="cum-prob">Cum: 2.6%</span></td>
+                            <td>7.3%<br><span class="bucket-count">N=17</span><br><span class="cum-prob">Cum: 7.3%</span></td>
+                            <td>10.8%<br><span class="bucket-count">N=25</span><br><span class="cum-prob">Cum: 10.8%</span></td>
+                            <td>13.4%<br><span class="bucket-count">N=31</span><br><span class="cum-prob">Cum: 13.4%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">1x-2x</td>
+                            <td>11.6%<br><span class="bucket-count">N=27</span><br><span class="cum-prob">Cum: 14.2%</span></td>
+                            <td>14.2%<br><span class="bucket-count">N=33</span><br><span class="cum-prob">Cum: 21.6%</span></td>
+                            <td>13.4%<br><span class="bucket-count">N=31</span><br><span class="cum-prob">Cum: 24.1%</span></td>
+                            <td>10.8%<br><span class="bucket-count">N=25</span><br><span class="cum-prob">Cum: 24.1%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">2x-3x</td>
+                            <td>14.7%<br><span class="bucket-count">N=34</span><br><span class="cum-prob">Cum: 28.9%</span></td>
+                            <td>17.7%<br><span class="bucket-count">N=41</span><br><span class="cum-prob">Cum: 39.2%</span></td>
+                            <td>13.8%<br><span class="bucket-count">N=32</span><br><span class="cum-prob">Cum: 37.9%</span></td>
+                            <td>9.5%<br><span class="bucket-count">N=22</span><br><span class="cum-prob">Cum: 33.6%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">3x-4x</td>
+                            <td>24.6%<br><span class="bucket-count">N=57</span><br><span class="cum-prob">Cum: 53.4%</span></td>
+                            <td>15.1%<br><span class="bucket-count">N=35</span><br><span class="cum-prob">Cum: 54.3%</span></td>
+                            <td>12.9%<br><span class="bucket-count">N=30</span><br><span class="cum-prob">Cum: 50.9%</span></td>
+                            <td>9.5%<br><span class="bucket-count">N=22</span><br><span class="cum-prob">Cum: 43.1%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">4x-5x</td>
+                            <td>13.8%<br><span class="bucket-count">N=32</span><br><span class="cum-prob">Cum: 67.2%</span></td>
+                            <td>12.9%<br><span class="bucket-count">N=30</span><br><span class="cum-prob">Cum: 67.2%</span></td>
+                            <td>11.6%<br><span class="bucket-count">N=27</span><br><span class="cum-prob">Cum: 62.5%</span></td>
+                            <td>7.8%<br><span class="bucket-count">N=18</span><br><span class="cum-prob">Cum: 50.9%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">5x-10x</td>
+                            <td>25.0%<br><span class="bucket-count">N=58</span><br><span class="cum-prob">Cum: 92.2%</span></td>
+                            <td>21.1%<br><span class="bucket-count">N=49</span><br><span class="cum-prob">Cum: 88.4%</span></td>
+                            <td>22.8%<br><span class="bucket-count">N=53</span><br><span class="cum-prob">Cum: 85.3%</span></td>
+                            <td>31.9%<br><span class="bucket-count">N=74</span><br><span class="cum-prob">Cum: 82.8%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">>10x</td>
+                            <td>7.8%<br><span class="bucket-count">N=18</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>11.6%<br><span class="bucket-count">N=27</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>14.7%<br><span class="bucket-count">N=34</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>17.2%<br><span class="bucket-count">N=40</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="kpi-table-container">
+                <h2>4x Events (N=109)</h2>
+                <table class="kpi-table">
+                    <thead>
+                        <tr>
+                            <th class="kpi-name">KPI</th>
+                            <th>1Y</th>
+                            <th>2Y</th>
+                            <th>3Y</th>
+                            <th>5Y</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="block-header"><td colspan="5"><strong>Total Return from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Total Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(29.7%)</span> - <span class="range-mid">11.0%</span> - <span class="range-small">38.9%</span></td>
+                            <td><span class="range-small">(47.6%)</span> - <span class="range-mid">10.7%</span> - <span class="range-small">51.8%</span></td>
+                            <td><span class="range-small">(55.7%)</span> - <span class="range-mid">10.8%</span> - <span class="range-small">63.3%</span></td>
+                            <td><span class="range-small">(59.9%)</span> - <span class="range-mid">55.9%</span> - <span class="range-small">128.5%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(29.7%)</span> - <span class="range-mid">11.0%</span> - <span class="range-small">38.9%</span></td>
+                            <td><span class="range-small">(27.6%)</span> - <span class="range-mid">5.2%</span> - <span class="range-small">23.2%</span></td>
+                            <td><span class="range-small">(23.7%)</span> - <span class="range-mid">3.5%</span> - <span class="range-small">17.8%</span></td>
+                            <td><span class="range-small">(16.7%)</span> - <span class="range-mid">9.3%</span> - <span class="range-small">18.0%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Total Return > 0%</td>
+                            <td>57.8%</td>
+                            <td>56.9%</td>
+                            <td>54.1%</td>
+                            <td>65.1%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Excess Return vs. S&P 500 from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Excess Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(42.4%)</span> - <span class="range-mid">(1.7%)</span> - <span class="range-small">26.6%</span></td>
+                            <td><span class="range-small">(45.9%)</span> - <span class="range-mid">(9.5%)</span> - <span class="range-small">32.5%</span></td>
+                            <td><span class="range-small">(51.3%)</span> - <span class="range-mid">(10.9%)</span> - <span class="range-small">26.0%</span></td>
+                            <td><span class="range-small">(61.4%)</span> - <span class="range-mid">(5.1%)</span> - <span class="range-small">57.4%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">Excess CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(42.4%)</span> - <span class="range-mid">(1.7%)</span> - <span class="range-small">26.6%</span></td>
+                            <td><span class="range-small">(26.4%)</span> - <span class="range-mid">(4.9%)</span> - <span class="range-small">15.1%</span></td>
+                            <td><span class="range-small">(21.3%)</span> - <span class="range-mid">(3.8%)</span> - <span class="range-small">8.0%</span></td>
+                            <td><span class="range-small">(17.3%)</span> - <span class="range-mid">(1.0%)</span> - <span class="range-small">9.5%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Excess Return > 0%</td>
+                            <td>46.8%</td>
+                            <td>44.0%</td>
+                            <td>45.0%</td>
+                            <td>49.5%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Multiple Distribution at End of Period</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">0x-1x</td>
+                            <td>5.5%<br><span class="bucket-count">N=6</span><br><span class="cum-prob">Cum: 5.5%</span></td>
+                            <td>7.3%<br><span class="bucket-count">N=8</span><br><span class="cum-prob">Cum: 7.3%</span></td>
+                            <td>9.2%<br><span class="bucket-count">N=10</span><br><span class="cum-prob">Cum: 9.2%</span></td>
+                            <td>14.7%<br><span class="bucket-count">N=16</span><br><span class="cum-prob">Cum: 14.7%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">1x-2x</td>
+                            <td>10.1%<br><span class="bucket-count">N=11</span><br><span class="cum-prob">Cum: 15.6%</span></td>
+                            <td>11.0%<br><span class="bucket-count">N=12</span><br><span class="cum-prob">Cum: 18.3%</span></td>
+                            <td>15.6%<br><span class="bucket-count">N=17</span><br><span class="cum-prob">Cum: 24.8%</span></td>
+                            <td>10.1%<br><span class="bucket-count">N=11</span><br><span class="cum-prob">Cum: 24.8%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">2x-3x</td>
+                            <td>4.6%<br><span class="bucket-count">N=5</span><br><span class="cum-prob">Cum: 20.2%</span></td>
+                            <td>10.1%<br><span class="bucket-count">N=11</span><br><span class="cum-prob">Cum: 28.4%</span></td>
+                            <td>2.8%<br><span class="bucket-count">N=3</span><br><span class="cum-prob">Cum: 27.5%</span></td>
+                            <td>4.6%<br><span class="bucket-count">N=5</span><br><span class="cum-prob">Cum: 29.4%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">3x-4x</td>
+                            <td>11.9%<br><span class="bucket-count">N=13</span><br><span class="cum-prob">Cum: 32.1%</span></td>
+                            <td>7.3%<br><span class="bucket-count">N=8</span><br><span class="cum-prob">Cum: 35.8%</span></td>
+                            <td>6.4%<br><span class="bucket-count">N=7</span><br><span class="cum-prob">Cum: 33.9%</span></td>
+                            <td>0.9%<br><span class="bucket-count">N=1</span><br><span class="cum-prob">Cum: 30.3%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">4x-5x</td>
+                            <td>12.8%<br><span class="bucket-count">N=14</span><br><span class="cum-prob">Cum: 45.0%</span></td>
+                            <td>8.3%<br><span class="bucket-count">N=9</span><br><span class="cum-prob">Cum: 44.0%</span></td>
+                            <td>11.0%<br><span class="bucket-count">N=12</span><br><span class="cum-prob">Cum: 45.0%</span></td>
+                            <td>1.8%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 32.1%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">5x-10x</td>
+                            <td>37.6%<br><span class="bucket-count">N=41</span><br><span class="cum-prob">Cum: 82.6%</span></td>
+                            <td>30.3%<br><span class="bucket-count">N=33</span><br><span class="cum-prob">Cum: 74.3%</span></td>
+                            <td>25.7%<br><span class="bucket-count">N=28</span><br><span class="cum-prob">Cum: 70.6%</span></td>
+                            <td>30.3%<br><span class="bucket-count">N=33</span><br><span class="cum-prob">Cum: 62.4%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">>10x</td>
+                            <td>17.4%<br><span class="bucket-count">N=19</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>25.7%<br><span class="bucket-count">N=28</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>29.4%<br><span class="bucket-count">N=32</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>37.6%<br><span class="bucket-count">N=41</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="kpi-table-container">
+                <h2>5x Events (N=76)</h2>
+                <table class="kpi-table">
+                    <thead>
+                        <tr>
+                            <th class="kpi-name">KPI</th>
+                            <th>1Y</th>
+                            <th>2Y</th>
+                            <th>3Y</th>
+                            <th>5Y</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="block-header"><td colspan="5"><strong>Total Return from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Total Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(45.9%)</span> - <span class="range-mid">5.9%</span> - <span class="range-small">38.8%</span></td>
+                            <td><span class="range-small">(51.1%)</span> - <span class="range-mid">9.2%</span> - <span class="range-small">58.9%</span></td>
+                            <td><span class="range-small">(55.5%)</span> - <span class="range-mid">10.1%</span> - <span class="range-small">75.5%</span></td>
+                            <td><span class="range-small">(61.8%)</span> - <span class="range-mid">33.8%</span> - <span class="range-small">118.0%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(45.9%)</span> - <span class="range-mid">5.9%</span> - <span class="range-small">38.8%</span></td>
+                            <td><span class="range-small">(30.1%)</span> - <span class="range-mid">4.5%</span> - <span class="range-small">26.1%</span></td>
+                            <td><span class="range-small">(23.6%)</span> - <span class="range-mid">3.3%</span> - <span class="range-small">20.6%</span></td>
+                            <td><span class="range-small">(17.5%)</span> - <span class="range-mid">6.0%</span> - <span class="range-small">16.9%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Total Return > 0%</td>
+                            <td>53.9%</td>
+                            <td>53.9%</td>
+                            <td>52.6%</td>
+                            <td>59.2%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Excess Return vs. S&P 500 from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Excess Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(58.4%)</span> - <span class="range-mid">(0.9%)</span> - <span class="range-small">22.3%</span></td>
+                            <td><span class="range-small">(46.2%)</span> - <span class="range-mid">(7.6%)</span> - <span class="range-small">34.7%</span></td>
+                            <td><span class="range-small">(58.1%)</span> - <span class="range-mid">(2.9%)</span> - <span class="range-small">45.8%</span></td>
+                            <td><span class="range-small">(61.2%)</span> - <span class="range-mid">(10.6%)</span> - <span class="range-small">57.6%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">Excess CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(58.4%)</span> - <span class="range-mid">(0.9%)</span> - <span class="range-small">22.3%</span></td>
+                            <td><span class="range-small">(26.6%)</span> - <span class="range-mid">(3.9%)</span> - <span class="range-small">16.1%</span></td>
+                            <td><span class="range-small">(25.2%)</span> - <span class="range-mid">(1.0%)</span> - <span class="range-small">13.4%</span></td>
+                            <td><span class="range-small">(17.2%)</span> - <span class="range-mid">(2.2%)</span> - <span class="range-small">9.5%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Excess Return > 0%</td>
+                            <td>48.7%</td>
+                            <td>43.4%</td>
+                            <td>44.7%</td>
+                            <td>46.1%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Multiple Distribution at End of Period</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">0x-1x</td>
+                            <td>10.5%<br><span class="bucket-count">N=8</span><br><span class="cum-prob">Cum: 10.5%</span></td>
+                            <td>6.6%<br><span class="bucket-count">N=5</span><br><span class="cum-prob">Cum: 6.6%</span></td>
+                            <td>7.9%<br><span class="bucket-count">N=6</span><br><span class="cum-prob">Cum: 7.9%</span></td>
+                            <td>13.2%<br><span class="bucket-count">N=10</span><br><span class="cum-prob">Cum: 13.2%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">1x-2x</td>
+                            <td>5.3%<br><span class="bucket-count">N=4</span><br><span class="cum-prob">Cum: 15.8%</span></td>
+                            <td>10.5%<br><span class="bucket-count">N=8</span><br><span class="cum-prob">Cum: 17.1%</span></td>
+                            <td>11.8%<br><span class="bucket-count">N=9</span><br><span class="cum-prob">Cum: 19.7%</span></td>
+                            <td>11.8%<br><span class="bucket-count">N=9</span><br><span class="cum-prob">Cum: 25.0%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">2x-3x</td>
+                            <td>5.3%<br><span class="bucket-count">N=4</span><br><span class="cum-prob">Cum: 21.1%</span></td>
+                            <td>3.9%<br><span class="bucket-count">N=3</span><br><span class="cum-prob">Cum: 21.1%</span></td>
+                            <td>2.6%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 22.4%</span></td>
+                            <td>1.3%<br><span class="bucket-count">N=1</span><br><span class="cum-prob">Cum: 26.3%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">3x-4x</td>
+                            <td>5.3%<br><span class="bucket-count">N=4</span><br><span class="cum-prob">Cum: 26.3%</span></td>
+                            <td>2.6%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 23.7%</span></td>
+                            <td>1.3%<br><span class="bucket-count">N=1</span><br><span class="cum-prob">Cum: 23.7%</span></td>
+                            <td>1.3%<br><span class="bucket-count">N=1</span><br><span class="cum-prob">Cum: 27.6%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">4x-5x</td>
+                            <td>5.3%<br><span class="bucket-count">N=4</span><br><span class="cum-prob">Cum: 31.6%</span></td>
+                            <td>10.5%<br><span class="bucket-count">N=8</span><br><span class="cum-prob">Cum: 34.2%</span></td>
+                            <td>6.6%<br><span class="bucket-count">N=5</span><br><span class="cum-prob">Cum: 30.3%</span></td>
+                            <td>5.3%<br><span class="bucket-count">N=4</span><br><span class="cum-prob">Cum: 32.9%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">5x-10x</td>
+                            <td>43.4%<br><span class="bucket-count">N=33</span><br><span class="cum-prob">Cum: 75.0%</span></td>
+                            <td>23.7%<br><span class="bucket-count">N=18</span><br><span class="cum-prob">Cum: 57.9%</span></td>
+                            <td>27.6%<br><span class="bucket-count">N=21</span><br><span class="cum-prob">Cum: 57.9%</span></td>
+                            <td>21.1%<br><span class="bucket-count">N=16</span><br><span class="cum-prob">Cum: 53.9%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">>10x</td>
+                            <td>25.0%<br><span class="bucket-count">N=19</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>42.1%<br><span class="bucket-count">N=32</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>42.1%<br><span class="bucket-count">N=32</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>46.1%<br><span class="bucket-count">N=35</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="kpi-table-container">
+                <h2>10x Events (N=33)</h2>
+                <table class="kpi-table">
+                    <thead>
+                        <tr>
+                            <th class="kpi-name">KPI</th>
+                            <th>1Y</th>
+                            <th>2Y</th>
+                            <th>3Y</th>
+                            <th>5Y</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="block-header"><td colspan="5"><strong>Total Return from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Total Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(65.0%)</span> - <span class="range-mid">(25.5%)</span> - <span class="range-small">12.4%</span></td>
+                            <td><span class="range-small">(53.6%)</span> - <span class="range-mid">(10.0%)</span> - <span class="range-small">45.7%</span></td>
+                            <td><span class="range-small">(55.9%)</span> - <span class="range-mid">(24.3%)</span> - <span class="range-small">31.5%</span></td>
+                            <td><span class="range-small">(87.5%)</span> - <span class="range-mid">(45.4%)</span> - <span class="range-small">33.9%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(65.0%)</span> - <span class="range-mid">(25.5%)</span> - <span class="range-small">12.4%</span></td>
+                            <td><span class="range-small">(31.9%)</span> - <span class="range-mid">(5.1%)</span> - <span class="range-small">20.7%</span></td>
+                            <td><span class="range-small">(23.9%)</span> - <span class="range-mid">(8.9%)</span> - <span class="range-small">9.5%</span></td>
+                            <td><span class="range-small">(34.0%)</span> - <span class="range-mid">(11.4%)</span> - <span class="range-small">6.0%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Total Return > 0%</td>
+                            <td>33.3%</td>
+                            <td>45.5%</td>
+                            <td>36.4%</td>
+                            <td>42.4%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Excess Return vs. S&P 500 from Event Date</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">Excess Return (25%-50%-75%)</td>
+                            <td><span class="range-small">(74.8%)</span> - <span class="range-mid">(30.7%)</span> - <span class="range-small">4.8%</span></td>
+                            <td><span class="range-small">(66.7%)</span> - <span class="range-mid">(7.4%)</span> - <span class="range-small">22.8%</span></td>
+                            <td><span class="range-small">(85.8%)</span> - <span class="range-mid">(1.2%)</span> - <span class="range-small">14.5%</span></td>
+                            <td><span class="range-small">(109.7%)</span> - <span class="range-mid">(85.0%)</span> - <span class="range-small">46.5%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">Excess CAGR (25%-50%-75%)</td>
+                            <td><span class="range-small">(74.8%)</span> - <span class="range-mid">(30.7%)</span> - <span class="range-small">4.8%</span></td>
+                            <td><span class="range-small">(42.3%)</span> - <span class="range-mid">(3.8%)</span> - <span class="range-small">10.8%</span></td>
+                            <td><span class="range-small">(47.8%)</span> - <span class="range-mid">(0.4%)</span> - <span class="range-small">4.6%</span></td>
+                            <td>N/A</td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">% Events with Excess Return > 0%</td>
+                            <td>30.3%</td>
+                            <td>42.4%</td>
+                            <td>48.5%</td>
+                            <td>33.3%</td>
+                        </tr>
+                        <tr class="block-header"><td colspan="5"><strong>Multiple Distribution at End of Period</strong></td></tr>
+                        <tr>
+                            <td class="kpi-name">0x-1x</td>
+                            <td>3.0%<br><span class="bucket-count">N=1</span><br><span class="cum-prob">Cum: 3.0%</span></td>
+                            <td>0.0%<br><span class="bucket-count">N=0</span><br><span class="cum-prob">Cum: 0.0%</span></td>
+                            <td>3.0%<br><span class="bucket-count">N=1</span><br><span class="cum-prob">Cum: 3.0%</span></td>
+                            <td>21.2%<br><span class="bucket-count">N=7</span><br><span class="cum-prob">Cum: 21.2%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">1x-2x</td>
+                            <td>9.1%<br><span class="bucket-count">N=3</span><br><span class="cum-prob">Cum: 12.1%</span></td>
+                            <td>9.1%<br><span class="bucket-count">N=3</span><br><span class="cum-prob">Cum: 9.1%</span></td>
+                            <td>12.1%<br><span class="bucket-count">N=4</span><br><span class="cum-prob">Cum: 15.2%</span></td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 27.3%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">2x-3x</td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 18.2%</span></td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 15.2%</span></td>
+                            <td>3.0%<br><span class="bucket-count">N=1</span><br><span class="cum-prob">Cum: 18.2%</span></td>
+                            <td>3.0%<br><span class="bucket-count">N=1</span><br><span class="cum-prob">Cum: 30.3%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">3x-4x</td>
+                            <td>0.0%<br><span class="bucket-count">N=0</span><br><span class="cum-prob">Cum: 18.2%</span></td>
+                            <td>0.0%<br><span class="bucket-count">N=0</span><br><span class="cum-prob">Cum: 15.2%</span></td>
+                            <td>0.0%<br><span class="bucket-count">N=0</span><br><span class="cum-prob">Cum: 18.2%</span></td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 36.4%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">4x-5x</td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 24.2%</span></td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 21.2%</span></td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 24.2%</span></td>
+                            <td>0.0%<br><span class="bucket-count">N=0</span><br><span class="cum-prob">Cum: 36.4%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">5x-10x</td>
+                            <td>21.2%<br><span class="bucket-count">N=7</span><br><span class="cum-prob">Cum: 45.5%</span></td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 27.3%</span></td>
+                            <td>9.1%<br><span class="bucket-count">N=3</span><br><span class="cum-prob">Cum: 33.3%</span></td>
+                            <td>6.1%<br><span class="bucket-count">N=2</span><br><span class="cum-prob">Cum: 42.4%</span></td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-name">>10x</td>
+                            <td>54.5%<br><span class="bucket-count">N=18</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>72.7%<br><span class="bucket-count">N=24</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>66.7%<br><span class="bucket-count">N=22</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                            <td>57.6%<br><span class="bucket-count">N=19</span><br><span class="cum-prob">Cum: 100.0%</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+
+    </div>
+</body>
+</html>
