@@ -4,7 +4,7 @@ Event study analyzing **Multibagger events in the S&P 500**. A "Multibagger" is 
 
 **Core question: How long should you hold your winners?**
 
-The study tracks post-event performance after stocks cross these multiple thresholds, measuring forward returns, drawdowns, probabilities of reaching the next multiple, and more.
+The study tracks post-event performance after stocks cross these multiple thresholds, measuring forward returns, excess returns vs S&P 500, and probabilities of reaching higher multiples.
 
 ## Key Design Decisions
 
@@ -122,26 +122,27 @@ For each (Multiple, Follow-up Period) combination:
 
 | Category | Metrics |
 |----------|---------|
-| **Returns** | 25th, 50th, 75th percentile, mean total return |
-| **CAGR** | Implied compound annual growth rates |
-| **Risk** | Maximum Drawdown (mean, median, worst), annualized volatility |
-| **Win Rate** | Percentage of events with positive forward return |
-| **Sharpe Ratio** | Simplified mean return / mean volatility |
-| **Next Multiple** | Probability of reaching next multiple, avg days to reach |
-| **Higher Multiples** | Probability of reaching each higher multiple (e.g., from 3x: prob of 4x, 5x, ..., 10x) |
-| **MDD Until Next** | Drawdown endured on the path to the next multiple (25th/50th/75th percentile) |
-| **Return If Not Reached** | Return distribution for events that did NOT reach the next multiple |
-| **Multiple Distribution** | Distribution of final prices in buckets: 0x-1x, 1x-2x, 2x-3x, 3x-4x, 4x-5x, 5x-10x, >10x |
+| **Total Returns** | Return percentiles (25th, 50th, 75th), mean return |
+| **CAGR** | Implied compound annual growth rates (25th, 50th, 75th percentiles) |
+| **Positive Return Rate** | Percentage of events with total return > 0% |
+| **Excess Returns vs S&P 500** | Excess return percentiles (25th, 50th, 75th) |
+| **Excess CAGR** | Excess CAGR percentiles (25th, 50th, 75th) |
+| **Outperformance Rate** | Percentage of events with excess return > 0% |
+| **Multiple Probabilities** | Probability of reaching next multiple (e.g., 2x → 3x) |
+| **Higher Multiple Probabilities** | Probability of reaching each higher multiple (e.g., from 3x: prob of 4x, 5x, ..., 10x) |
+| **Multiple Distribution** | Distribution of final prices in buckets: 0x-1x, 1x-2x, 2x-3x, 3x-4x, 4x-5x, 5x-10x, >10x with cumulative probabilities |
 
 ### KPI Tables
 
-In addition to the summary statistics, the analysis generates structured **KPI tables** (one per multiple: 2x, 3x, 4x, 5x, 10x) organized into blocks:
+The analysis generates structured **KPI tables** (one per multiple: 2x, 3x, 4x, 5x, 10x) organized into blocks:
 
 | Block | Metrics |
 |-------|---------|
-| **Total Return** | Return percentiles (25th/50th/75th), CAGR percentiles, % events with return > 0 |
-| **Excess Return vs S&P 500** | Excess return percentiles, excess CAGR percentiles, % events with excess return > 0 |
-| **Multiple Distribution** | Bucket percentages (0x-1x, 1x-2x, ..., >10x), event counts per bucket |
+| **Total Return from Event Date** | Return percentiles (25th-50th-75th), CAGR percentiles (25th-50th-75th), % events with return > 0% |
+| **Excess Return vs S&P 500 from Event Date** | Excess return percentiles (25th-50th-75th), excess CAGR percentiles (25th-50th-75th), % events with excess return > 0% |
+| **Multiple Distribution at End of Period** | Bucket percentages with event counts (0x-1x, 1x-2x, 2x-3x, 3x-4x, 4x-5x, 5x-10x, >10x) and cumulative probabilities |
+
+**Note:** KPI tables focus on 1Y, 2Y, 3Y, and 5Y periods (10Y excluded for clarity).
 
 ### Data Cleaning
 
