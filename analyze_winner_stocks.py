@@ -22,6 +22,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 import yfinance as yf
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
 
 warnings.filterwarnings('ignore')
 
@@ -772,6 +776,143 @@ class WinnerStocksAnalyzer:
 
         print(f"Saved KPI tables HTML to {output_file}")
 
+    def create_charts(self, output_dir='analysis_results'):
+        """
+        Create bar charts for the analysis run:
+        1. Event count distribution (how many 2x, 3x, 4x, ... events)
+        2. Multiple distribution charts (outcome buckets per multiple and period)
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        self._create_event_count_chart(output_path)
+        self._create_multiple_distribution_charts(output_path)
+
+    def _create_event_count_chart(self, output_path):
+        """
+        Bar chart showing how many events were observed for each multiple (2x, 3x, ..., 10x).
+        """
+        if not hasattr(self, 'events') or len(self.events) == 0:
+            print("Warning: No events data available for event count chart.")
+            return
+
+        print("\nCreating event count distribution chart...")
+
+        event_counts = self.events.groupby('multiple').size().reindex(self.multiples, fill_value=0)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(event_counts)))
+        bars = ax.bar(
+            [f'{m}x' for m in event_counts.index],
+            event_counts.values,
+            color=colors,
+            edgecolor='white',
+            linewidth=0.8,
+        )
+
+        # Add value labels on top of each bar
+        for bar, count in zip(bars, event_counts.values):
+            if count > 0:
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + max(event_counts.values) * 0.01,
+                    f'{count:,}',
+                    ha='center', va='bottom', fontsize=10, fontweight='bold',
+                )
+
+        ax.set_xlabel('Multiple Threshold', fontsize=12)
+        ax.set_ylabel('Number of Events', fontsize=12)
+        ax.set_title('Distribution of Observed Multibagger Events', fontsize=14, fontweight='bold')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x):,}'))
+
+        plt.tight_layout()
+        chart_file = output_path / 'chart_event_counts.png'
+        fig.savefig(chart_file, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        print(f"Saved event count chart to {chart_file}")
+
+    def _create_multiple_distribution_charts(self, output_path):
+        """
+        For each multiple (2x, 3x, ...), create a grouped bar chart showing the
+        distribution of outcome buckets (0x-1x, 1x-2x, ..., >10x) across follow-up periods.
+        """
+        if not hasattr(self, 'multiple_distribution') or len(self.multiple_distribution) == 0:
+            print("Warning: No multiple distribution data available for charts.")
+            return
+
+        print("Creating multiple distribution charts...")
+
+        buckets = ['0x-1x', '1x-2x', '2x-3x', '3x-4x', '4x-5x', '5x-10x', '>10x']
+        periods = ['1Y', '2Y', '3Y', '5Y']
+        bucket_colors = ['#d73027', '#fc8d59', '#fee08b', '#d9ef8b', '#91cf60', '#1a9850', '#004529']
+
+        for multiple in self.multiples:
+            dist_data = self.multiple_distribution[
+                (self.multiple_distribution['current_multiple'] == multiple) &
+                (self.multiple_distribution['period'].isin(periods))
+            ]
+
+            if len(dist_data) == 0:
+                continue
+
+            # Build percentage matrix: rows=periods, cols=buckets
+            pct_matrix = {}
+            for period in periods:
+                period_data = dist_data[dist_data['period'] == period]
+                total = len(period_data)
+                if total == 0:
+                    continue
+                row = {}
+                for bucket in buckets:
+                    count = len(period_data[period_data['bucket'] == bucket])
+                    row[bucket] = (count / total) * 100
+                pct_matrix[period] = row
+
+            if not pct_matrix:
+                continue
+
+            available_periods = [p for p in periods if p in pct_matrix]
+            x = np.arange(len(available_periods))
+            n_buckets = len(buckets)
+            bar_width = 0.8 / n_buckets
+
+            fig, ax = plt.subplots(figsize=(12, 6))
+
+            for i, bucket in enumerate(buckets):
+                values = [pct_matrix[p].get(bucket, 0) for p in available_periods]
+                offset = (i - n_buckets / 2 + 0.5) * bar_width
+                ax.bar(
+                    x + offset,
+                    values,
+                    bar_width,
+                    label=bucket,
+                    color=bucket_colors[i],
+                    edgecolor='white',
+                    linewidth=0.5,
+                )
+
+            ax.set_xlabel('Follow-up Period', fontsize=12)
+            ax.set_ylabel('% of Events', fontsize=12)
+            ax.set_title(
+                f'{multiple}x Events — Outcome Distribution by Holding Period',
+                fontsize=14, fontweight='bold',
+            )
+            ax.set_xticks(x)
+            ax.set_xticklabels(available_periods, fontsize=11)
+            ax.legend(title='Final Multiple Bucket', bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=9)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+
+            plt.tight_layout()
+            chart_file = output_path / f'chart_distribution_{multiple}x.png'
+            fig.savefig(chart_file, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+
+        print(f"Saved multiple distribution charts to {output_path}/")
+
     def export_ticker_to_excel(self, ticker, output_dir='analysis_results'):
         """
         Export all analysis data for a single ticker to Excel for manual verification.
@@ -972,6 +1113,9 @@ class WinnerStocksAnalyzer:
             self._create_kpi_tables_html(output_path)
             print("Saved kpi_tables.html")
 
+        # Create charts
+        self.create_charts(output_dir)
+
         # Save run configuration
         run_config = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -1043,6 +1187,8 @@ class WinnerStocksAnalyzer:
         print("  - detected_events.csv (all crossing events)")
         print("  - next_multiple_probabilities.csv")
         print("  - multiple_distribution.csv (multiple distribution data)")
+        print("  - chart_event_counts.png (bar chart of event counts by multiple)")
+        print("  - chart_distribution_Nx.png (outcome distribution per multiple)")
         print("\nTo export data for a specific ticker to Excel:")
         print("  analyzer.export_ticker_to_excel('AAPL')")
         
