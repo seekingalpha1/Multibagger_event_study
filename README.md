@@ -19,8 +19,7 @@ The study tracks post-event performance after stocks cross these multiple thresh
 Multibagger_event_study/
 ├── download_sp500_data.py      # Phase 1: Data acquisition & cleaning
 ├── analyze_winner_stocks.py    # Phase 2: Event study analysis
-├── summary_template.html       # HTML template for interactive summary statistics
-├── kpi_tables_template.html    # HTML template for structured KPI tables
+├── kpi_tables_template.html    # HTML template for interactive KPI tables
 └── README.md
 ```
 
@@ -98,13 +97,12 @@ python analyze_winner_stocks.py --export-ticker AAPL
 | File | Description |
 |------|-------------|
 | `summary_statistics.csv` | Main results table (one row per multiple, all KPIs) |
-| `summary_statistics.html` | Interactive HTML table with period/metric filtering |
 | `detailed_results.csv` | One row per event with forward returns for all periods |
 | `detected_events.csv` | All detected crossing events |
 | `next_multiple_probabilities.csv` | Probability of reaching higher multiples |
 | `multiple_distribution.csv` | Distribution of final prices in buckets (0x-1x, 1x-2x, ..., >10x) |
 | `kpi_tables.csv` | Structured KPI data organized by blocks |
-| `kpi_tables.html` | Interactive KPI tables with block-based layout |
+| `kpi_tables.html` | Interactive HTML tables with formatted output and cumulative probabilities |
 | `run_config.json` | Configuration parameters used for this run |
 | `ticker_analysis_*.xlsx` | Per-ticker detailed Excel workbook (optional, via `--export-ticker`) |
 
@@ -162,7 +160,6 @@ When running the analysis with `--run-name`, results are saved to a subdirectory
 analysis_results/
 ├── baseline/
 │   ├── summary_statistics.csv
-│   ├── summary_statistics.html
 │   ├── detailed_results.csv
 │   ├── detected_events.csv
 │   ├── next_multiple_probabilities.csv
